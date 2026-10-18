@@ -158,6 +158,50 @@ function isTrustedPanelRequest(request) {
 	}
 }
 
+/** Hostnames a browser may legitimately reach the panel through. */
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+
+/**
+ * Verdict on the `Host` header: `undefined` to proceed, otherwise the reason
+ * to refuse.
+ *
+ * The localhost gate on `socket.remoteAddress` proves where the packets came
+ * from, not which name the browser believes it is talking to. A page the user
+ * visits can point a domain at 127.0.0.1 (DNS rebinding); that request looks
+ * same-origin to the browser, carries no `Origin` on a GET, and would read
+ * host metadata plus probe results. Requiring a localhost `Host` closes it.
+ *
+ * A request with no `Host` at all did not come from a browser (HTTP/1.0, curl,
+ * the test harness), and the remote-address gate still applies to it.
+ */
+function hostVerdict(host) {
+	if (typeof host !== 'string' || host.trim() === '') return undefined;
+	const text = host.trim().toLowerCase();
+	// An IPv6 literal arrives bracketed — `[::1]:3080` — where splitting on the
+	// colon would leave「[」and refuse a legitimate way to reach the panel.
+	const name = text.startsWith('[') ? text.slice(0, text.indexOf(']') + 1) : text.split(':')[0];
+	return LOCAL_HOSTNAMES.has(name) ? undefined : `host "${host}" is not a localhost name`;
+}
+
+/**
+ * Verdict on a state-changing POST: `undefined` to proceed, otherwise the
+ * reason to refuse. isTrustedPanelRequest already demands an http(s) `Origin`
+ * matching the `Host` header; this additionally pins the origin's hostname
+ * (port stripped) to the localhost set, so a rebound domain that resolves to
+ * 127.0.0.1 cannot drive probes even when it mirrors the Host header.
+ */
+function postVerdict(request) {
+	if (!isTrustedPanelRequest(request)) return 'untrusted request';
+	try {
+		// WHATWG URL keeps IPv6 literal hostnames bracketed, matching the set.
+		const hostname = new URL(request.headers.origin).hostname.toLowerCase();
+		if (!LOCAL_HOSTNAMES.has(hostname)) return `origin "${request.headers.origin}" is not allowed to write dsh-ssh-manager settings`;
+	} catch {
+		return 'untrusted request';
+	}
+	return undefined;
+}
+
 function sendPanelJson(response, status, value) {
 	const payload = JSON.stringify(value);
 	response.writeHead(status, {
@@ -168,15 +212,28 @@ function sendPanelJson(response, status, value) {
 	response.end(payload);
 }
 
-/** Read and parse a small JSON request body. */
-function readJsonBody(request) {
+/**
+ * Read and parse a small JSON request body. Failures carry a `kind` field
+ * ('too-large' | 'bad-json') so the route can map them to distinct statuses;
+ * oversize bodies are answered here with 413 before the socket is torn down.
+ */
+function readJsonBody(request, response) {
 	return new Promise((resolve, reject) => {
 		let size = 0;
 		const chunks = [];
+		const fail = (kind, message) => {
+			const error = new Error(message);
+			error.kind = kind;
+			return error;
+		};
 		request.on('data', (chunk) => {
 			size += chunk.length;
 			if (size > 64 * 1024) {
-				reject(new Error('body too large'));
+				// Answer first, and only while the response can still take one.
+				if (!response.writableEnded && !response.destroyed) {
+					sendPanelJson(response, 413, { ok: false, error: { code: 'too-large', message: 'request body exceeds 64 KiB' } });
+				}
+				reject(fail('too-large', 'body too large'));
 				request.destroy();
 				return;
 			}
@@ -186,7 +243,7 @@ function readJsonBody(request) {
 			try {
 				resolve(chunks.length === 0 ? {} : JSON.parse(Buffer.concat(chunks).toString('utf8')));
 			} catch (error) {
-				reject(error);
+				reject(fail('bad-json', `invalid JSON body: ${firstLine(error.message)}`));
 			}
 		});
 		request.on('error', reject);
@@ -204,15 +261,45 @@ function installPanelWeb(ctx, config) {
 			path: PANEL_ROUTE,
 			handler: async (request, response) => {
 				try {
-					if (!isTrustedPanelRequest(request) && request.method !== 'GET') {
-						sendPanelJson(response, 403, { ok: false, error: { code: 'untrusted', message: 'untrusted request' } });
+					// Localhost-only: host metadata and probe results must never
+					// leak to the LAN when a deployment binds the webserver wide.
+					const remote = String(request.socket?.remoteAddress ?? '');
+					if (remote !== '127.0.0.1' && remote !== '::1' && remote !== '::ffff:127.0.0.1') {
+						sendPanelJson(response, 403, { ok: false, error: { code: 'forbidden', message: 'dsh-ssh-manager panel is localhost-only' } });
 						return;
+					}
+					// Localhost is where the packets came from, not which name the
+					// browser thinks it reached; a rebound domain resolving to
+					// 127.0.0.1 would otherwise read the panel on a same-origin GET.
+					const host = hostVerdict(request.headers.host);
+					if (host !== undefined) {
+						sendPanelJson(response, 403, { ok: false, error: { code: 'forbidden', message: host } });
+						return;
+					}
+					if (request.method === 'POST') {
+						// A page the user visits can POST here cross-origin as a
+						//「simple request」and drive probes; these checks are the
+						// part of that a page script cannot forge away.
+						const post = postVerdict(request);
+						if (post !== undefined) {
+							sendPanelJson(response, 403, { ok: false, error: { code: 'untrusted', message: post } });
+							return;
+						}
 					}
 					const hosts = config.hosts ?? {};
 					if (request.method === 'GET') {
+						const summaries = hostSummaries(hosts);
+						const known = new Set(summaries.map(summary => summary.alias));
 						const probed = {};
-						for (const [alias, result] of probeResults) probed[alias] = result;
-						sendPanelJson(response, 200, { ok: true, value: { hosts: hostSummaries(hosts), probed } });
+						for (const [alias, result] of probeResults) {
+							// Prune cache entries for hosts the config no longer has.
+							if (!known.has(alias)) {
+								probeResults.delete(alias);
+								continue;
+							}
+							probed[alias] = result;
+						}
+						sendPanelJson(response, 200, { ok: true, value: { hosts: summaries, probed } });
 						return;
 					}
 					if (request.method !== 'POST') {
@@ -220,7 +307,7 @@ function installPanelWeb(ctx, config) {
 						response.end();
 						return;
 					}
-					const body = await readJsonBody(request);
+					const body = await readJsonBody(request, response);
 					if (body?.action !== 'probe') {
 						sendPanelJson(response, 400, { ok: false, error: { code: 'bad-action', message: 'unsupported action' } });
 						return;
@@ -239,6 +326,13 @@ function installPanelWeb(ctx, config) {
 					}));
 					sendPanelJson(response, 200, { ok: true, value: { results } });
 				} catch (error) {
+					// readJsonBody already answered oversize bodies with 413, and a
+					// destroyed or finished stream cannot take another write.
+					if (response.writableEnded || response.destroyed) return;
+					if (error?.kind === 'bad-json') {
+						sendPanelJson(response, 400, { ok: false, error: { code: 'bad-json', message: String(error?.message ?? error) } });
+						return;
+					}
 					sendPanelJson(response, 500, { ok: false, error: { code: 'internal', message: String(error?.message ?? error) } });
 				}
 			},

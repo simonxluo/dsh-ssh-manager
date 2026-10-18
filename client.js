@@ -85,7 +85,7 @@ async function api(action, payload) {
 	return body.value;
 }
 
-function statusBadge(status, t) {
+function statusBadge(status, t, errorText) {
 	const style = {
 		display: "inline-flex",
 		alignItems: "center",
@@ -107,7 +107,7 @@ function statusBadge(status, t) {
 			t("status.ok"));
 	}
 	if (status === "fail") {
-		return h("span", { style: Object.assign({}, style, { background: "rgba(239,68,68,.1)", color: "#dc2626" }), title: status.error || "" },
+		return h("span", { style: Object.assign({}, style, { background: "rgba(239,68,68,.1)", color: "#dc2626" }), title: errorText || "" },
 			h("span", { style: Object.assign({}, dot, { background: "#ef4444" }) }),
 			t("status.fail"));
 	}
@@ -214,9 +214,10 @@ function SshManagerSection(props, ctx) {
 					h("td", { style: td },
 						statusBadge(
 							status === "probing" ? "probing"
-								: status && typeof status === "object" ? (status.ok ? "ok" : status)
+								: status && typeof status === "object" ? (status.ok ? "ok" : "fail")
 								: "unknown",
-							t),
+							t,
+							status && typeof status === "object" ? String(status.error || "") : ""),
 						ok && typeof status.latencyMs === "number"
 							? h("span", { style: { marginLeft: "8px", fontSize: "12px", opacity: 0.6 } }, status.latencyMs + " " + t("ms"))
 							: null));
