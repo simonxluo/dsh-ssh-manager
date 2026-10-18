@@ -15,7 +15,8 @@ Manage SSH identity keys and per-host ssh config from the DSH plugin card — fi
 - Card-driven: uses the built-in 0.2.x plugin-config form; saves hot-apply (volatile config), no restart
 - Isolated: everything lives in `$DSH_HOME/.ssh`; the only write to `~/.ssh` is one idempotent `Include` line
 - Materializes per host: `Host` block (0600), private key (0600), derived `.pub` (0644, via `ssh-keygen -y`)
-- `autoInclude`: inserts one idempotent `Include` line before the first `Host` block of `~/./ssh/config` so plain `ssh`/`git` resolves managed hosts
+- **Password connections**: ip / user / password entries with an optional alias (defaults to the ip) and a workspace binding, managed in the Settings panel — the password is visible only while first typed and write-only afterwards (0600 local store, never returned by the API); connectivity is probed over TCP
+- `autoInclude`: inserts one idempotent `Include` line before the first `Host` block of `~/.ssh/config` so plain `ssh`/`git` resolves managed hosts
 - Self-healing: idempotent reconcile, orphan cleanup on host removal, invalid entries skipped with warnings
 
 **Install**
@@ -61,6 +62,7 @@ autoInclude: true
 - 卡片驱动：复用 0.2.x 内置插件配置表单，保存即热生效（volatile 配置），无需重启
 - 完全隔离：所有产物都在 `$DSH_HOME/.ssh`；对 `~/.ssh` 的唯一写操作是幂等追加一行 `Include`
 - 每主机落盘：`Host` 块（0600）、私钥（0600）、推导公钥 `.pub`（0644，`ssh-keygen -y`）
+- **密码连接**：以 ip / 用户 / 密码创建连接（别名可选，缺省用 IP），可绑定工作区，在设置面板管理——密码仅首次输入时可见，之后只写不可查（0600 本地存储，API 永不回传）；以 TCP 探测连通性
 - `autoInclude`：在 `~/.ssh/config` 的首个 `Host` 块前幂等插入一行 `Include`，普通 `ssh`/`git` 即可解析托管主机
 - 自愈：幂等收敛、删除主机自动清理孤儿目录、非法条目跳过并告警
 
@@ -92,6 +94,7 @@ DSH のプラグイン設定カードから SSH 鍵とホスト別 ssh 設定を
 - カード駆動：0.2.x 標準のプラグイン設定フォームを利用、保存はホット適用（volatile 設定・再起動不要）
 - 完全分離：成果物はすべて `$DSH_HOME/.ssh`。`~/.ssh` への書き込みは冪等な `Include` 1 行のみ
 - ホスト単位の生成：`Host` ブロック（0600）、秘密鍵（0600）、派生公開鍵 `.pub`（0644、`ssh-keygen -y`）
+- **パスワード接続**：ip / ユーザー / パスワードで接続を作成（エイリアス任意、未指定なら IP）。ワークスペース連携可能。パスワードは初回入力時のみ表示、以降は書き込み専用（0600 ローカル保存、API では返されない）。TCP で到達性を確認
 - `autoInclude`：`~/.ssh/config` の最初の `Host` ブロック前に冪等に `Include` を 1 行挿入し、通常の `ssh`/`git` で解決可能に
 - 自己修復：冪等リコンサイル、ホスト削除時の孤立ディレクトリ掃除、無効エントリは警告付きスキップ
 
@@ -120,6 +123,7 @@ Gestiona claves SSH e configuración por host desde la tarjeta de plugins de DSH
 - Tarjeta nativa: usa el formulario estándar de 0.2.x; los cambios se aplican en caliente (config volatile), sin reiniciar
 - Aislado: todo vive en `$DSH_HOME/.ssh`; la única escritura en `~/.ssh` es una línea `Include` idempotente
 - Por host: bloque `Host` (0600), clave privada (0600), pública derivada `.pub` (0644, vía `ssh-keygen -y`)
+- **Conexiones con contraseña**: entradas ip / usuario / contraseña con alias opcional (por defecto la IP) y workspace, gestionadas en el panel — la contraseña solo es visible al escribirla la primera vez, luego de solo escritura (almacén local 0600, nunca devuelta por la API); conectividad comprobada por TCP
 - `autoInclude`: inserta una línea `Include` idempotente antes del primer bloque `Host` de `~/.ssh/config` para que `ssh`/`git` resuelvan los hosts
 - Autocuración: reconciliación idempotente, limpieza de huérfanos, entradas inválidas omitidas con aviso
 
