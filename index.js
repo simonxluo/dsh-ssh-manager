@@ -30,8 +30,11 @@
 import { basename, join } from 'node:path';
 import { homedir } from 'node:os';
 import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
 import Schema from '@deepseek-ai/schemastery';
+
+const execFileAsync = promisify(execFile);
 
 const MANAGED_BEGIN = '# --- dsh-ssh-manager (managed; do not edit) ---';
 const MANAGED_END = '# --- dsh-ssh-manager (managed; end) ---';
@@ -70,6 +73,176 @@ function liveConfig(config) {
 			const value = Reflect.get(target, key, receiver);
 			return value !== null && typeof value === 'object' && typeof value.get === 'function' ? value.get() : value;
 		},
+	});
+}
+
+// ---------------------------------------------------------------------------
+// Connectivity probing (panel support).
+// ---------------------------------------------------------------------------
+
+const PANEL_ROUTE = '/_dsh/dsh-ssh-manager/panel';
+const PROBE_TIMEOUT_MS = 8000;
+/** alias -> { ok, latencyMs, at, error? }; written only by probeHost. */
+const probeResults = new Map();
+/** alias -> in-flight probe promise, so concurrent requests share one probe. */
+const probeInflight = new Map();
+
+function firstLine(text) {
+	const line = String(text ?? '').split('\n', 1)[0].trim();
+	return line.length > 160 ? line.slice(0, 160) + '…' : line;
+}
+
+/**
+ * Probe one host with a real, non-interactive SSH handshake through the
+ * materialized config: BatchMode forbids prompts, the askpass stub plus a hard
+ * timeout keep the host thread free, and /dev/null known-hosts avoids writing
+ * anything as a side effect of a status check.
+ */
+export async function probeHost(alias, logger) {
+	const started = Date.now();
+	try {
+		await execFileAsync('ssh', [
+			'-o', 'BatchMode=yes',
+			'-o', 'ConnectTimeout=5',
+			'-o', 'StrictHostKeyChecking=no',
+			'-o', 'UserKnownHostsFile=/dev/null',
+			'-o', 'LogLevel=ERROR',
+			'-T', alias, 'true',
+		], {
+			timeout: PROBE_TIMEOUT_MS,
+			env: { ...process.env, SSH_ASKPASS: '/bin/false', SSH_ASKPASS_REQUIRE: 'force' },
+		});
+		const result = { ok: true, latencyMs: Date.now() - started, at: Date.now() };
+		probeResults.set(alias, result);
+		return result;
+	} catch (error) {
+		const result = { ok: false, latencyMs: Date.now() - started, at: Date.now(), error: firstLine(error.stderr) || firstLine(error.message) };
+		probeResults.set(alias, result);
+		logger?.debug?.('dsh-ssh-manager: probe %s failed: %s', alias, result.error);
+		return result;
+	}
+}
+
+/** Probe one host, deduplicating concurrent calls on the same alias. */
+export function probeHostOnce(alias, logger) {
+	let promise = probeInflight.get(alias);
+	if (promise === undefined) {
+		promise = probeHost(alias, logger).finally(() => probeInflight.delete(alias));
+		probeInflight.set(alias, promise);
+	}
+	return promise;
+}
+
+/** Host metadata for the panel; the private key never crosses this boundary. */
+export function hostSummaries(hosts) {
+	return Object.entries(hosts ?? {})
+		.filter(([alias]) => safeHostName(alias) !== null)
+		.map(([alias, cfg]) => ({
+			alias,
+			url: String(cfg?.url ?? ''),
+			user: String(cfg?.user ?? ''),
+			hasKey: String(cfg?.privateKey ?? '').length > 0,
+		}));
+}
+
+/** Same-origin check for panel requests, mirroring the import route's rule. */
+function isTrustedPanelRequest(request) {
+	const origin = request.headers.origin;
+	const host = request.headers.host;
+	if (origin === undefined || host === undefined) return false;
+	try {
+		const parsed = new URL(origin);
+		return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.host === host;
+	} catch {
+		return false;
+	}
+}
+
+function sendPanelJson(response, status, value) {
+	const payload = JSON.stringify(value);
+	response.writeHead(status, {
+		'content-type': 'application/json',
+		'cache-control': 'no-store',
+		'content-length': Buffer.byteLength(payload),
+	});
+	response.end(payload);
+}
+
+/** Read and parse a small JSON request body. */
+function readJsonBody(request) {
+	return new Promise((resolve, reject) => {
+		let size = 0;
+		const chunks = [];
+		request.on('data', (chunk) => {
+			size += chunk.length;
+			if (size > 64 * 1024) {
+				reject(new Error('body too large'));
+				request.destroy();
+				return;
+			}
+			chunks.push(chunk);
+		});
+		request.on('end', () => {
+			try {
+				resolve(chunks.length === 0 ? {} : JSON.parse(Buffer.concat(chunks).toString('utf8')));
+			} catch (error) {
+				reject(error);
+			}
+		});
+		request.on('error', reject);
+	});
+}
+
+/**
+ * Mount the panel API: GET lists host metadata plus cached probe results;
+ * POST {action:'probe', host?} runs a probe (all hosts when host is absent).
+ */
+function installPanelWeb(ctx, config) {
+	ctx.inject(['webServer'], (webCtx) => {
+		webCtx.effect(() => webCtx.webServer.register({
+			kind: 'exact',
+			path: PANEL_ROUTE,
+			handler: async (request, response) => {
+				try {
+					if (!isTrustedPanelRequest(request) && request.method !== 'GET') {
+						sendPanelJson(response, 403, { ok: false, error: { code: 'untrusted', message: 'untrusted request' } });
+						return;
+					}
+					const hosts = config.hosts ?? {};
+					if (request.method === 'GET') {
+						const probed = {};
+						for (const [alias, result] of probeResults) probed[alias] = result;
+						sendPanelJson(response, 200, { ok: true, value: { hosts: hostSummaries(hosts), probed } });
+						return;
+					}
+					if (request.method !== 'POST') {
+						response.writeHead(405, { allow: 'GET, POST' });
+						response.end();
+						return;
+					}
+					const body = await readJsonBody(request);
+					if (body?.action !== 'probe') {
+						sendPanelJson(response, 400, { ok: false, error: { code: 'bad-action', message: 'unsupported action' } });
+						return;
+					}
+					const known = new Set(hostSummaries(hosts).map(summary => summary.alias));
+					const targets = typeof body.host === 'string' && body.host.length > 0
+						? [body.host]
+						: [...known];
+					const results = {};
+					await Promise.all(targets.map(async (alias) => {
+						if (!known.has(alias)) {
+							results[alias] = { ok: false, error: 'unknown host' };
+							return;
+						}
+						results[alias] = await probeHostOnce(alias, ctx.logger);
+					}));
+					sendPanelJson(response, 200, { ok: true, value: { results } });
+				} catch (error) {
+					sendPanelJson(response, 500, { ok: false, error: { code: 'internal', message: String(error?.message ?? error) } });
+				}
+			},
+		}), 'dsh-ssh-manager: panel route');
 	});
 }
 
@@ -396,6 +569,7 @@ export function apply(ctx, rowConfig) {
 		}
 	};
 	sync('activation');
+	installPanelWeb(ctx, config);
 	ctx.effect(() => {
 		const timer = setInterval(() => sync('config change'), 3000);
 		return () => clearInterval(timer);
