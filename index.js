@@ -32,6 +32,7 @@ import { homedir } from 'node:os';
 import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
+import { createConnection as tcpConnect } from 'node:net';
 import Schema from '@deepseek-ai/schemastery';
 
 const execFileAsync = promisify(execFile);
@@ -143,6 +144,115 @@ export function hostSummaries(hosts) {
 			user: String(cfg?.user ?? ''),
 			hasKey: String(cfg?.privateKey ?? '').length > 0,
 		}));
+}
+
+// ---------------------------------------------------------------------------
+// Password connections (email-style credential store).
+//
+// Connections bind {ip, user, password, workspace} to an alias (the ip when no
+// alias is given). The password is write-only: it lives in a 0600 JSON file
+// under the integrations directory (the same local-plaintext convention the
+// email plugin uses for account passwords) and never crosses the panel API —
+// reads return a `hasPassword` boolean, and a save that omits the field keeps
+// the stored value so editing never needs to re-enter it.
+// ---------------------------------------------------------------------------
+
+function connectionsFile() {
+	const home = process.env.DSH_HOME ?? join(homedir(), '.dsh');
+	return join(home, 'integrations', 'dsh-ssh-manager', 'connections.json');
+}
+
+/** Load the connection map; absent or malformed storage starts empty. */
+function loadConnections() {
+	try {
+		const doc = JSON.parse(readFileSync(connectionsFile(), 'utf8'));
+		if (doc !== null && typeof doc === 'object' && doc.connections !== null && typeof doc.connections === 'object') {
+			return doc.connections;
+		}
+	} catch { /* absent or unreadable storage starts empty */ }
+	return {};
+}
+
+function saveConnections(connections) {
+	const file = connectionsFile();
+	mkdirSync(join(file, '..'), { recursive: true, mode: 0o700 });
+	writeFileMode(file, JSON.stringify({ version: 1, connections }, null, '\t') + '\n', 0o600);
+}
+
+/** Validation the schema-less store cannot express; an error string or null. */
+function connectionProblem(entry) {
+	const ip = String(entry.ip ?? '').trim();
+	if (ip.length === 0) return 'ip is required';
+	if (/[\r\n]/.test(ip) || /\s/.test(ip)) return 'ip must be a single token';
+	const user = String(entry.user ?? '').trim();
+	if (user.length === 0) return 'user is required';
+	if (/[\r\n]/.test(user) || /\s/.test(user)) return 'user must be a single token without whitespace';
+	if (entry.port !== undefined && entry.port !== null && entry.port !== '') {
+		const port = Number(entry.port);
+		if (!Number.isInteger(port) || port < 1 || port > 65535) return 'port must be an integer between 1 and 65535';
+	}
+	if (entry.workspace !== undefined && entry.workspace !== null && /[\r\n]/.test(String(entry.workspace))) {
+		return 'workspace must be a single line';
+	}
+	return null;
+}
+
+/** Connection metadata for the panel; the password never crosses this boundary. */
+export function connectionSummaries(connections) {
+	return Object.entries(connections ?? {})
+		.filter(([alias]) => safeHostName(alias) !== null)
+		.map(([alias, conn]) => ({
+			alias,
+			ip: String(conn?.ip ?? ''),
+			port: conn?.port ?? 22,
+			user: String(conn?.user ?? ''),
+			workspace: String(conn?.workspace ?? ''),
+			hasPassword: String(conn?.password ?? '').length > 0,
+		}));
+}
+
+/**
+ * TCP reachability probe for a password connection: macOS ships no sshpass, so
+ * a non-interactive password handshake is not possible — an open TCP port (plus
+ * the connect latency) is the honest answer the panel can give.
+ */
+export async function probeConnectionTcp(ip, port, timeoutMs = 6000) {
+	const started = Date.now();
+	await new Promise((resolve, reject) => {
+		const socket = tcpConnect({ host: ip, port: Number(port) || 22 });
+		const timer = setTimeout(() => {
+			socket.destroy();
+			reject(new Error('connect timed out'));
+		}, timeoutMs);
+		socket.once('connect', () => {
+			clearTimeout(timer);
+			socket.destroy();
+			resolve();
+		});
+		socket.once('error', (error) => {
+			clearTimeout(timer);
+			reject(error);
+		});
+	});
+	return { ok: true, latencyMs: Date.now() - started, at: Date.now(), tcp: true };
+}
+
+/** Probe one connection, deduplicating concurrent calls on the same alias. */
+function probeConnectionOnce(alias, conn, logger) {
+	const key = 'conn:' + alias;
+	let promise = probeInflight.get(key);
+	if (promise === undefined) {
+		promise = probeConnectionTcp(conn.ip, conn.port)
+			.catch((error) => ({ ok: false, latencyMs: 0, at: Date.now(), error: firstLine(error?.message ?? error) }))
+			.then((result) => {
+				probeResults.set(key, result);
+				if (result.ok !== true) logger?.debug?.('dsh-ssh-manager: connection probe %s failed: %s', alias, result.error);
+				return result;
+			})
+			.finally(() => probeInflight.delete(key));
+		probeInflight.set(key, promise);
+	}
+	return promise;
 }
 
 /** Hostnames a browser may legitimately reach the panel through. */
@@ -296,44 +406,108 @@ function installPanelWeb(ctx, config) {
 						}
 					}
 					const hosts = config.hosts ?? {};
-					if (request.method === 'GET') {
-						const summaries = hostSummaries(hosts);
-						const known = new Set(summaries.map(summary => summary.alias));
-						const probed = {};
-						for (const [alias, result] of probeResults) {
-							// Prune cache entries for hosts the config no longer has.
-							if (!known.has(alias)) {
-								probeResults.delete(alias);
-								continue;
-							}
-							probed[alias] = result;
-						}
-						sendPanelJson(response, 200, { ok: true, value: { hosts: summaries, probed } });
-						return;
-					}
-					if (request.method !== 'POST') {
-						response.writeHead(405, { allow: 'GET, POST' });
-						response.end();
-						return;
-					}
-					const body = await readJsonBody(request, response);
-					if (body?.action !== 'probe') {
-						sendPanelJson(response, 400, { ok: false, error: { code: 'bad-action', message: 'unsupported action' } });
-						return;
-					}
-					const known = new Set(hostSummaries(hosts).map(summary => summary.alias));
-					const targets = typeof body.host === 'string' && body.host.length > 0
-						? [body.host]
-						: [...known];
-					const results = {};
-					await Promise.all(targets.map(async (alias) => {
+				if (request.method === 'GET') {
+					const summaries = hostSummaries(hosts);
+					const connections = loadConnections();
+					const connSummaries = connectionSummaries(connections);
+					const known = new Set(summaries.map(summary => summary.alias));
+					for (const summary of connSummaries) known.add('conn:' + summary.alias);
+					const probed = {};
+					for (const [alias, result] of probeResults) {
+						// Prune cache entries the current config no longer has.
 						if (!known.has(alias)) {
-							results[alias] = { ok: false, error: 'unknown host' };
+							probeResults.delete(alias);
+							continue;
+						}
+						probed[alias] = result;
+					}
+					sendPanelJson(response, 200, { ok: true, value: { hosts: summaries, connections: connSummaries, probed } });
+					return;
+				}
+				if (request.method !== 'POST') {
+					response.writeHead(405, { allow: 'GET, POST' });
+					response.end();
+					return;
+				}
+				const body = await readJsonBody(request, response);
+				if (body?.action === 'conn-save') {
+					const alias = safeHostName(String(body.alias ?? '').trim() || String(body.ip ?? '').trim());
+					if (alias === null) {
+						sendPanelJson(response, 400, { ok: false, error: { code: 'bad-alias', message: 'alias (or ip) must be a safe name: letters, digits, dot, dash, underscore' } });
+						return;
+					}
+					const problem = connectionProblem(body);
+					if (problem !== null) {
+						sendPanelJson(response, 400, { ok: false, error: { code: 'bad-connection', message: problem } });
+						return;
+					}
+					const connections = loadConnections();
+					const prior = connections[alias] ?? {};
+					// Write-only password: an omitted or empty field keeps the
+					// stored value, so editing never re-enters the secret.
+					const password = typeof body.password === 'string' && body.password.length > 0
+						? body.password
+						: String(prior.password ?? '');
+					if (password.length === 0) {
+						sendPanelJson(response, 400, { ok: false, error: { code: 'bad-connection', message: 'password is required for a new connection' } });
+						return;
+					}
+					connections[alias] = {
+						ip: String(body.ip).trim(),
+						port: body.port === undefined || body.port === null || body.port === '' ? 22 : Number(body.port),
+						user: String(body.user).trim(),
+						password,
+						workspace: String(body.workspace ?? '').trim(),
+						createdAt: prior.createdAt ?? Date.now(),
+					};
+					saveConnections(connections);
+					probeResults.delete('conn:' + alias);
+					const summary = connectionSummaries({ [alias]: connections[alias] })[0];
+					sendPanelJson(response, 200, { ok: true, value: { connection: summary } });
+					return;
+				}
+				if (body?.action === 'conn-delete') {
+					const alias = safeHostName(String(body.alias ?? '').trim());
+					if (alias === null) {
+						sendPanelJson(response, 400, { ok: false, error: { code: 'bad-alias', message: 'alias is required' } });
+						return;
+					}
+					const connections = loadConnections();
+					if (Object.prototype.hasOwnProperty.call(connections, alias)) {
+						delete connections[alias];
+						saveConnections(connections);
+					}
+					probeResults.delete('conn:' + alias);
+					sendPanelJson(response, 200, { ok: true, value: { deleted: alias } });
+					return;
+				}
+				if (body?.action !== 'probe') {
+					sendPanelJson(response, 400, { ok: false, error: { code: 'bad-action', message: 'unsupported action' } });
+					return;
+				}
+				const connections = loadConnections();
+				const known = new Set(hostSummaries(hosts).map(summary => summary.alias));
+				for (const alias of Object.keys(connections)) known.add('conn:' + alias);
+				const wanted = typeof body.target === 'string' && body.target.length > 0 ? [body.target] : [...known];
+				const results = {};
+				await Promise.all(wanted.map(async (target) => {
+					if (target.startsWith('conn:')) {
+						const alias = target.slice(5);
+						const conn = connections[alias];
+						if (conn === undefined) {
+							results[target] = { ok: false, error: 'unknown connection' };
 							return;
 						}
-						results[alias] = await probeHostOnce(alias, ctx.logger);
-					}));
-					sendPanelJson(response, 200, { ok: true, value: { results } });
+						results[target] = await probeConnectionOnce(alias, conn, ctx.logger);
+						return;
+					}
+					if (!known.has(target)) {
+						results[target] = { ok: false, error: 'unknown host' };
+						return;
+					}
+					results[target] = await probeHostOnce(target, ctx.logger);
+				}));
+				sendPanelJson(response, 200, { ok: true, value: { results } });
 				} catch (error) {
 					// readJsonBody already answered oversize bodies with 413, and a
 					// destroyed or finished stream cannot take another write.
