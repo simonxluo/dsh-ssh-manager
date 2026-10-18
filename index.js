@@ -27,9 +27,9 @@
  * ssh/git reads the managed Host blocks. Files the plugin does not recognize
  * (known_hosts, manually placed keys, unrelated config) are preserved.
  */
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { homedir } from 'node:os';
-import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createConnection as tcpConnect } from 'node:net';
@@ -164,19 +164,30 @@ function connectionsFile() {
 
 /** Load the connection map; absent or malformed storage starts empty. */
 function loadConnections() {
+	const file = connectionsFile();
 	try {
-		const doc = JSON.parse(readFileSync(connectionsFile(), 'utf8'));
+		const doc = JSON.parse(readFileSync(file, 'utf8'));
 		if (doc !== null && typeof doc === 'object' && doc.connections !== null && typeof doc.connections === 'object') {
 			return doc.connections;
 		}
-	} catch { /* absent or unreadable storage starts empty */ }
+	} catch {
+		// Absent storage starts empty silently; a file that exists but cannot
+		// be read or parsed is data loss in progress and gets one stderr line
+		// (there is no logger in this scope).
+		if (existsSync(file)) process.stderr.write('dsh-ssh-manager: connections.json unreadable, starting empty\n');
+	}
 	return {};
 }
 
 function saveConnections(connections) {
 	const file = connectionsFile();
-	mkdirSync(join(file, '..'), { recursive: true, mode: 0o700 });
-	writeFileMode(file, JSON.stringify({ version: 1, connections }, null, '\t') + '\n', 0o600);
+	mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+	// Atomic replace: write a sibling temp file, then rename over the target,
+	// so a crash mid-write never leaves truncated JSON that the next load
+	// would treat as "start empty" (and the next save would then wipe).
+	const tmp = join(dirname(file), '.connections.json.tmp');
+	writeFileMode(tmp, JSON.stringify({ version: 1, connections }, null, '\t') + '\n', 0o600);
+	renameSync(tmp, file);
 }
 
 /** Validation the schema-less store cannot express; an error string or null. */
@@ -461,6 +472,7 @@ function installPanelWeb(ctx, config) {
 						createdAt: prior.createdAt ?? Date.now(),
 					};
 					saveConnections(connections);
+					ctx.logger?.info?.('dsh-ssh-manager: connection %s saved (%s@%s)', alias, connections[alias].user, connections[alias].ip);
 					probeResults.delete('conn:' + alias);
 					const summary = connectionSummaries({ [alias]: connections[alias] })[0];
 					sendPanelJson(response, 200, { ok: true, value: { connection: summary } });
@@ -476,6 +488,7 @@ function installPanelWeb(ctx, config) {
 					if (Object.prototype.hasOwnProperty.call(connections, alias)) {
 						delete connections[alias];
 						saveConnections(connections);
+						ctx.logger?.info?.('dsh-ssh-manager: connection %s deleted', alias);
 					}
 					probeResults.delete('conn:' + alias);
 					sendPanelJson(response, 200, { ok: true, value: { deleted: alias } });
@@ -513,7 +526,7 @@ function installPanelWeb(ctx, config) {
 					// destroyed or finished stream cannot take another write.
 					if (response.writableEnded || response.destroyed) return;
 					if (error?.kind === 'bad-json') {
-						sendPanelJson(response, 400, { ok: false, error: { code: 'bad-json', message: String(error?.message ?? error) } });
+						sendPanelJson(response, 400, { ok: false, error: { code: 'bad-json', message: 'request body is not valid JSON' } });
 						return;
 					}
 					sendPanelJson(response, 500, { ok: false, error: { code: 'internal', message: String(error?.message ?? error) } });

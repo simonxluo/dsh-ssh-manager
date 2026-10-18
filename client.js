@@ -376,8 +376,8 @@ function StatusPill(props) {
 			props.t("status.probing"));
 	}
 	if (props.kind === "ok") {
-		return h("span", { className: "dstm-pill dshm-pill", style: { background: "rgba(34,197,94,.12)", color: "#16a34a" } },
-			h("span", { className: "dstm-dot dshm-dot", style: { background: "#22c55e" } }),
+		return h("span", { className: "dshm-pill", style: { background: "rgba(34,197,94,.12)", color: "#16a34a" } },
+			h("span", { className: "dshm-dot", style: { background: "#22c55e" } }),
 			props.t("status.ok"),
 			typeof props.latencyMs === "number" ? h("span", { style: { opacity: 0.65 } }, props.latencyMs + " " + props.t("ms")) : null,
 			props.tcp ? h("span", { style: { opacity: 0.6 } }, "· " + props.t("conn.tcp")) : null);
@@ -467,23 +467,31 @@ function SshManagerSection(props, ctx) {
 
 	const saveForm = useCallback(async () => {
 		if (!form) return;
-		const payload = {
-			alias: form.editing === null ? form.alias : form.editing,
-			ip: form.ip, port: form.port, user: form.user,
-			password: form.password, workspace: form.workspace,
-		};
-		const value = await api("conn-save", payload);
-		if (!alive.current) return;
-		setForm(null);
-		await load();
-		if (value && value.connection) await probeOne("conn:" + value.connection.alias);
+		try {
+			const payload = {
+				alias: form.editing === null ? form.alias : form.editing,
+				ip: form.ip, port: form.port, user: form.user,
+				password: form.password, workspace: form.workspace,
+			};
+			const value = await api("conn-save", payload);
+			if (!alive.current) return;
+			setForm(null);
+			await load();
+			if (value && value.connection) await probeOne("conn:" + value.connection.alias);
+		} catch (err) {
+			if (alive.current) setError(t("error.probe") + String(err && err.message ? err.message : err));
+		}
 	}, [form]);
 
 	const deleteConnection = useCallback(async (alias) => {
 		if (!window.confirm(t("conn.confirmDelete") + " " + alias + "?")) return;
-		await api("conn-delete", { alias });
-		if (!alive.current) return;
-		await load();
+		try {
+			await api("conn-delete", { alias });
+			if (!alive.current) return;
+			await load();
+		} catch (err) {
+			if (alive.current) setError(t("error.probe") + String(err && err.message ? err.message : err));
+		}
 	}, []);
 
 	const statusOf = (key) => {
@@ -524,7 +532,7 @@ function SshManagerSection(props, ctx) {
 			const s = statusOf(item.alias);
 			return h("div", { key: item.alias, className: "dshm-card" },
 				h("div", { className: "dshm-card-head" },
-					h("span", { className: "dstm-card-title dshm-card-title", title: item.alias }, item.alias),
+					h("span", { className: "dshm-card-title", title: item.alias }, item.alias),
 					h(StatusPill, { kind: s.kind, latencyMs: s.latencyMs, error: s.error, t: t })),
 				h(Kv, { label: t("col.url"), value: item.url }),
 				h("div", { className: "dshm-kv", style: { gap: "10px" } },
@@ -549,13 +557,13 @@ function SshManagerSection(props, ctx) {
 					h("span", null, t("conn.ip")),
 					h("input", { className: "dshm-input", value: form.ip, placeholder: "192.168.1.10", onChange: setField("ip") }))),
 			h("div", { className: "dshm-fieldrow" },
-				h("div", { className: "dstm-field dshm-field", style: { flex: "0 1 170px" } },
+				h("div", { className: "dshm-field", style: { flex: "0 1 170px" } },
 					h("span", null, t("conn.port")),
 					h("input", { className: "dshm-input", value: form.port, placeholder: "22", onChange: setField("port") })),
 				h("div", { className: "dshm-field" },
 					h("span", null, t("conn.user")),
 					h("input", { className: "dshm-input", value: form.user, placeholder: "root", onChange: setField("user") }))),
-			h("div", { className: "dstm-fieldrow dshm-fieldrow" },
+			h("div", { className: "dshm-fieldrow" },
 				h("div", { className: "dshm-field" },
 					h("span", null, t("conn.password")),
 					h("input", {
@@ -566,7 +574,7 @@ function SshManagerSection(props, ctx) {
 						autoComplete: "new-password",
 						onChange: setField("password"),
 					}))),
-			h("div", { className: "dstm-fieldrow dstm-field dstm-fieldrow dstm-fieldrow dshm-fieldrow" },
+			h("div", { className: "dshm-fieldrow" },
 				h("div", { className: "dshm-field" },
 					h("span", null, t("conn.workspace")),
 					h("input", { className: "dshm-input", value: form.workspace, placeholder: "/Users/you/project", onChange: setField("workspace") }))),
