@@ -62,10 +62,125 @@ const zh = {
 	"ms": "毫秒",
 };
 
-/** The browser locale picks the dictionary; keys fall back to English. */
-function makeT(locale) {
-	const dict = String(locale ?? "").toLowerCase().startsWith("zh") ? zh : en;
-	return (key) => dict[key] ?? en[key] ?? key;
+const ja = {
+	"nav.title": "SSH 管理",
+	"title": "開発機管理",
+	"subtitle": "この harness に保存された SSH ホストとその接続状態。",
+	"col.alias": "エイリアス",
+	"col.url": "アドレス",
+	"col.user": "ユーザー",
+	"col.key": "鍵",
+	"col.status": "状態",
+	"key.yes": "管理対象",
+	"key.no": "—",
+	"status.unknown": "未実行",
+	"status.probing": "確認中…",
+	"status.ok": "接続可能",
+	"status.fail": "接続不可",
+	"action.probeAll": "すべて確認",
+	"action.refresh": "更新",
+	"empty": "ホストが未設定です — プラグイン設定カードで追加してください。",
+	"error.load": "ホストの読み込みに失敗：",
+	"key.has": "管理鍵あり",
+	"key.none": "管理鍵なし",
+	"ms": "ミリ秒",
+};
+
+const es = {
+	"nav.title": "Gestión SSH",
+	"title": "Gestión de máquinas de desarrollo",
+	"subtitle": "Hosts SSH guardados en este harness y su conectividad.",
+	"col.alias": "Alias",
+	"col.url": "Dirección",
+	"col.user": "Usuario",
+	"col.key": "Clave",
+	"col.status": "Estado",
+	"key.yes": "gestionada",
+	"key.no": "—",
+	"status.unknown": "Sin comprobar",
+	"status.probing": "Comprobando…",
+	"status.ok": "Accesible",
+	"status.fail": "Inaccesible",
+	"action.probeAll": "Comprobar todo",
+	"action.refresh": "Actualizar",
+	"empty": "Aún no hay hosts configurados — añade uno en la tarjeta de configuración del plugin.",
+	"error.load": "Error al cargar hosts: ",
+	"key.has": "Con clave gestionada",
+	"key.none": "Sin clave gestionada",
+	"ms": "ms",
+};
+
+// ---- i18n: follow the harness locale service (pattern from dsh-email) ----
+const UI = { en, zh, ja, es };
+/** Current UI language. Module-level so plain functions (the nav label) read it live. */
+var UI_LANG = "en";
+/**
+ * Language resolution: prefix match on the harness locale tag (zh-CN → zh,
+ * en-US → en, ja-JP → ja, es-ES → es). Unknown, empty, or missing tags fall
+ * back to English — the dictionary the keys are written against.
+ */
+function localeToLang(active) {
+	const tag = String(active === undefined || active === null ? "" : active).toLowerCase();
+	for (const lang of ["zh", "en", "ja", "es"]) {
+		if (tag.indexOf(lang) === 0) return lang;
+	}
+	return "en";
+}
+
+/** Redraw hook set by the mounted section; language switches re-render through it. */
+var relocalize = null;
+
+/**
+ * The locale service is optional: read it through ctx.get when available and
+ * fall back to the direct property. An absent service is a normal path, never
+ * an error — the panel then simply stays English.
+ */
+function localeServiceOf(ctx) {
+	try {
+		if (typeof ctx.get === "function") {
+			const viaGet = ctx.get("locale");
+			if (viaGet !== undefined && viaGet !== null) return viaGet;
+		}
+	} catch { /* fall through to the direct read */ }
+	const direct = ctx.locale;
+	return direct === undefined || direct === null ? null : direct;
+}
+
+/**
+ * Read the current language once and subscribe to later switches. Every step
+ * is existence-checked so any failure keeps the last language instead of
+ * breaking the plugin mount. Returns an unsubscribe function.
+ */
+function subscribeLocale(ctx) {
+	const service = localeServiceOf(ctx);
+	if (service === null) return () => {};
+	const apply = () => {
+		try {
+			if (typeof service.getSnapshot === "function") {
+				UI_LANG = localeToLang(service.getSnapshot().active);
+			}
+		} catch { /* keep the last language */ }
+		if (typeof relocalize === "function") {
+			try { relocalize(); } catch { /* a failed redraw must not break the subscription chain */ }
+		}
+	};
+	apply();
+	try {
+		if (typeof service.subscribe !== "function") return () => {};
+		const off = service.subscribe(apply);
+		return typeof off === "function" ? off : () => {};
+	} catch {
+		return () => {};
+	}
+}
+
+/** One dictionary entry with a single-level English fallback; the key itself
+ * surfaces when a translation is missing so gaps stay visible. */
+function t(key) {
+	const table = UI[UI_LANG];
+	if (table !== undefined && Object.prototype.hasOwnProperty.call(table, key)) return table[key];
+	const raw = en[key];
+	return raw === undefined ? key : raw;
 }
 
 async function api(action, payload) {
@@ -117,13 +232,18 @@ function statusBadge(status, t, errorText) {
 }
 
 function SshManagerSection(props, ctx) {
-	const t = makeT(ctx && ctx.locale && ctx.locale.getLocale ? ctx.locale.getLocale().id : undefined);
+	const [, setLangTick] = useState(0);
 	const [hosts, setHosts] = useState(null);
 	const [probed, setProbed] = useState({});
 	const [probing, setProbing] = useState(false);
 	const [error, setError] = useState("");
 	const alive = useRef(true);
 	useEffect(() => () => { alive.current = false; }, []);
+	// A harness language switch re-renders the section through this hook.
+	useEffect(() => {
+		relocalize = () => setLangTick((v) => v + 1);
+		return () => { relocalize = null; };
+	}, []);
 
 	const load = useCallback(async () => {
 		try {
@@ -225,14 +345,14 @@ function SshManagerSection(props, ctx) {
 }
 
 function apply(ctx) {
+	// Keep UI_LANG in step with the harness language for the plugin's whole
+	// lifetime; the section re-renders itself through the relocalize hook.
+	ctx.effect(() => subscribeLocale(ctx));
 	ctx.slots.inject("settings.section", () => ctx.slots.register({
 		name: "settings.section",
 		id: "dsh-ssh-manager",
 		order: 46,
-		label: () => {
-			const t = makeT(ctx.locale && ctx.locale.getLocale ? ctx.locale.getLocale().id : undefined);
-			return t("nav.title");
-		},
+		label: () => t("nav.title"),
 		inject: () => ({}),
 	}, (props) => SshManagerSection(props, ctx)));
 }
