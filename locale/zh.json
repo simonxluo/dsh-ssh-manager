@@ -1,0 +1,6 @@
+{
+	"meta": {
+		"title": "SSH 管理",
+		"description": "在插件配置卡片中管理 SSH 身份密钥与按主机 ssh 配置，落盘到 DSH 主目录（$DSH_HOME/.ssh），让 agent 的 git-over-ssh 直接可用。"
+	}
+}

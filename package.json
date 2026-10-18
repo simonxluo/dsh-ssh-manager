@@ -1,0 +1,46 @@
+{
+  "name": "dsh-ssh-manager",
+  "version": "1.0.0",
+  "description": "Manage SSH identity keys and per-host ssh config from the plugin configuration card; materializes them under the DSH home so git-over-ssh works. Native DeepSeek Harness 0.2.x rewrite.",
+  "type": "module",
+  "license": "MIT",
+  "author": "simonxluo",
+  "homepage": "https://github.com/simonxluo/dsh-ssh-manager",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simonxluo/dsh-ssh-manager.git"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "ssh",
+    "ssh-config",
+    "git"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0",
+    "dsh": ">=0.2.1-rc.1"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.2"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+	"meta": {
+		"title": "SSH Manager",
+		"description": "Manage SSH identity keys and per-host ssh config from the plugin configuration card; materializes them under the DSH home so git-over-ssh works."
+	}
+}

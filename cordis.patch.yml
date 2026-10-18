@@ -1,0 +1,5 @@
+# dsh-ssh-manager — insert the Host plugin row by bare specifier.
+- insert:
+    - id: dsh-ssh-manager
+      name: dsh-ssh-manager
+      config: {}

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SSH Manager">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e3a5f"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <g stroke="#34d399" stroke-width="5" fill="none" stroke-linecap="round">
+    <circle cx="23" cy="23" r="8.5"/>
+    <path d="M29 29 L47 47"/>
+    <path d="M40.5 40.5 L45.5 35.5"/>
+    <path d="M46.5 46.5 L51.5 41.5"/>
+  </g>
+</svg>
