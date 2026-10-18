@@ -103,6 +103,14 @@ function hostProblem(host, raw) {
 	const url = String(cfg.url ?? '').trim();
 	if (url.length === 0) return `host ${safe} needs a url (HostName)`;
 	if (/[\r\n]/.test(url)) return `host ${safe}: url must be a single line`;
+	// `user` lands in the Host block verbatim, so it must stay a single token;
+	// whitespace (not just newlines) would allow extra ssh directives to be
+	// injected. No aggressive charset allowlist — it would reject valid names
+	// like DOMAIN\user.
+	if (cfg.user !== undefined && cfg.user !== '') {
+		const user = String(cfg.user);
+		if (/[\r\n]/.test(user) || /\s/.test(user)) return `host ${safe}: user must be a single token without whitespace`;
+	}
 	const key = String(cfg.privateKey ?? '');
 	if (key.trim().length > 0) {
 		const first = key.trimStart().split('\n', 1)[0];
@@ -111,19 +119,41 @@ function hostProblem(host, raw) {
 	return null;
 }
 
-/** Rewrite a config text, replacing the managed region; everything else is kept. */
+/** Rewrite a config text, replacing complete managed regions; everything else
+ * is kept. An orphan MANAGED_BEGIN without its END is preserved as ordinary
+ * content instead of swallowing the rest of the file. */
 export function withManagedRegion(content, managedLines) {
 	const out = [];
+	let buffer = [];
 	let inside = false;
 	for (const line of String(content).split('\n')) {
 		const trimmed = line.trim();
-		if (trimmed === MANAGED_BEGIN) { inside = true; continue; }
-		if (trimmed === MANAGED_END) { inside = false; continue; }
-		if (!inside) out.push(line);
+		if (trimmed === MANAGED_BEGIN) {
+			// A second BEGIN inside an unterminated region: keep the first
+			// region's content as ordinary text before starting over.
+			if (inside) out.push(MANAGED_BEGIN, ...buffer);
+			inside = true;
+			buffer = [];
+			continue;
+		}
+		if (inside) {
+			if (trimmed === MANAGED_END) {
+				inside = false;
+				buffer = [];
+				continue;
+			}
+			buffer.push(line);
+			continue;
+		}
+		out.push(line);
 	}
+	// Orphan BEGIN at EOF: its content is the user's, not ours to delete.
+	if (inside) out.push(MANAGED_BEGIN, ...buffer);
 	const head = out.join('\n').replace(/\n{3,}/g, '\n\n').replace(/\s+$/, '');
 	const region = [MANAGED_BEGIN, ...managedLines, MANAGED_END].join('\n');
-	return (head.length > 0 ? head + '\n\n' : '') + region + '\n';
+	// The region goes FIRST: ssh folds an Include that appears after an opened
+	// Host block into that block's scope, where it silently stops working.
+	return region + '\n' + (head.length > 0 ? '\n' + head + '\n' : '');
 }
 
 /**
@@ -147,14 +177,22 @@ export function renderHostConfig(sshDir, host, cfg) {
 }
 
 function writeFileMode(file, content, mode) {
-	writeFileSync(file, content);
+	// {mode} closes the creation window on new files; chmodSync also tightens
+	// pre-existing files, where the writeFileSync mode option has no effect.
+	writeFileSync(file, content, mode === undefined ? undefined : { mode });
 	if (mode !== undefined) chmodSync(file, mode);
 }
 
 /** Derive `<key>.pub` next to a key via `ssh-keygen -y`; best-effort. */
 function derivePublicKey(keyFile, logger) {
 	try {
-		const pub = execFileSync('ssh-keygen', ['-y', '-f', keyFile], { encoding: 'utf8' }).trimEnd();
+		const pub = execFileSync('ssh-keygen', ['-y', '-f', keyFile], {
+			encoding: 'utf8',
+			// A passphrase-protected key must fail fast instead of prompting on
+			// the controlling tty and blocking the host thread forever.
+			timeout: 5000,
+			env: { ...process.env, SSH_ASKPASS: '/bin/false', SSH_ASKPASS_REQUIRE: 'force' },
+		}).trimEnd();
 		writeFileMode(`${keyFile}.pub`, pub + '\n', 0o644);
 	} catch {
 		logger?.warn?.('dsh-ssh-manager: could not derive public key from %s (ssh-keygen unavailable or key protected)', keyFile);
@@ -210,16 +248,27 @@ export function reconcileKeys(hosts, logger) {
 			if (prior !== wantedKey) {
 				writeFileMode(keyFile, wantedKey, 0o600);
 				derivePublicKey(keyFile, logger);
+			} else if ((statSync(keyFile).mode & 0o777) !== 0o600) {
+				// Unchanged content but a loose pre-existing file (for example
+				// written by v1.0.0 before the mode option): tighten it anyway.
+				chmodSync(keyFile, 0o600);
 			}
 		}
-		writeFileMode(join(dir, 'config'), renderHostConfig(sshDir, host, cfg), 0o600);
+		// Read before writing so unchanged Host blocks keep their mtimes.
+		const cfgFile = join(dir, 'config');
+		const nextCfg = renderHostConfig(sshDir, host, cfg);
+		const priorCfg = existsSync(cfgFile) ? readFileSync(cfgFile, 'utf8') : '';
+		if (priorCfg !== nextCfg) writeFileMode(cfgFile, nextCfg, 0o600);
 	}
 	const flat = join(sshDir, 'config');
 	const prior = existsSync(flat) ? readFileSync(flat, 'utf8') : '';
+	// Explicit per-host Include lines instead of a glob: some ssh builds fail
+	// to glob through symlinked path prefixes (for example /tmp on macOS), and
+	// the wanted set is already known here.
 	const next = withManagedRegion(prior, [
 		'',
 		'# Per-host blocks managed by the SSH manager card.',
-		`Include ${join(configD, '*', 'config')}`,
+		...[...wanted.keys()].map(host => `Include ${join(configD, host, 'config')}`),
 		'',
 	]);
 	if (prior !== next) writeFileMode(flat, next, 0o600);
@@ -270,10 +319,10 @@ export function ensureSshImport() {
 	if (!existsSync(flat)) {
 		try {
 			mkdirSync(join(sshDir, 'config.d'), { recursive: true, mode: 0o700 });
+			// Empty region: the per-host Include lines are written by reconcileKeys,
+			// which knows the wanted host set.
 			writeFileMode(flat, withManagedRegion('', [
 				'# Per-host blocks managed by the SSH manager card.',
-				`Include ${join(sshDir, 'config.d', '*', 'config')}`,
-				'',
 			]), 0o600);
 		} catch (error) {
 			return { ...present, changed: false, error: String(error?.message ?? error) };
@@ -286,8 +335,20 @@ export function ensureSshImport() {
 	} catch (error) {
 		return { ...present, changed: false, error: String(error?.message ?? error) };
 	}
-	const tail = prior.replace(/[ \t]+$/gm, '').replace(/\n+$/, '');
-	const next = (prior.length > 0 ? tail + '\n\n' : '') + present.includePath + '\n';
+	// Insert before the first Host/Match block, never at the tail: ssh folds an
+	// Include that follows an opened Host block into that block's scope, where
+	// it silently stops working. Global options above the insertion point keep
+	// their earlier first-match priority.
+	const lines = prior.length > 0 ? prior.replace(/\n+$/, '').split('\n') : [];
+	let insertAt = lines.length;
+	for (let i = 0; i < lines.length; i++) {
+		if (/^(Host|Match)\s/i.test(lines[i].trim())) {
+			insertAt = i;
+			break;
+		}
+	}
+	lines.splice(insertAt, 0, ...(insertAt > 0 ? ['', present.includePath] : [present.includePath]));
+	const next = lines.join('\n') + '\n';
 	try {
 		mkdirSync(join(homedir(), '.ssh'), { recursive: true, mode: 0o700 });
 		const recheck = sshImportPresent();

@@ -1,6 +1,6 @@
 # dsh-ssh-manager
 
-`v1.0.0` · MIT · DeepSeek Harness ≥ 0.2.1-rc.1
+`v1.0.1` · MIT · DeepSeek Harness ≥ 0.2.1-rc.1
 
 [English](#english) | [简体中文](#简体中文) | [日本語](#日本語) | [Español](#español) | [Architecture (DAG)](#architecture)
 
@@ -15,7 +15,7 @@ Manage SSH identity keys and per-host ssh config from the DSH plugin card — fi
 - Card-driven: uses the built-in 0.2.x plugin-config form; saves hot-apply (volatile config), no restart
 - Isolated: everything lives in `$DSH_HOME/.ssh`; the only write to `~/.ssh` is one idempotent `Include` line
 - Materializes per host: `Host` block (0600), private key (0600), derived `.pub` (0644, via `ssh-keygen -y`)
-- `autoInclude`: appends one idempotent `Include` line to `~/.ssh/config` so plain `ssh`/`git` resolves managed hosts
+- `autoInclude`: inserts one idempotent `Include` line before the first `Host` block of `~/./ssh/config` so plain `ssh`/`git` resolves managed hosts
 - Self-healing: idempotent reconcile, orphan cleanup on host removal, invalid entries skipped with warnings
 
 **Install**
@@ -61,7 +61,7 @@ autoInclude: true
 - 卡片驱动：复用 0.2.x 内置插件配置表单，保存即热生效（volatile 配置），无需重启
 - 完全隔离：所有产物都在 `$DSH_HOME/.ssh`；对 `~/.ssh` 的唯一写操作是幂等追加一行 `Include`
 - 每主机落盘：`Host` 块（0600）、私钥（0600）、推导公钥 `.pub`（0644，`ssh-keygen -y`）
-- `autoInclude`：向 `~/.ssh/config` 幂等追加一行 `Include`，普通 `ssh`/`git` 即可解析托管主机
+- `autoInclude`：在 `~/.ssh/config` 的首个 `Host` 块前幂等插入一行 `Include`，普通 `ssh`/`git` 即可解析托管主机
 - 自愈：幂等收敛、删除主机自动清理孤儿目录、非法条目跳过并告警
 
 **安装**
@@ -92,7 +92,7 @@ DSH のプラグイン設定カードから SSH 鍵とホスト別 ssh 設定を
 - カード駆動：0.2.x 標準のプラグイン設定フォームを利用、保存はホット適用（volatile 設定・再起動不要）
 - 完全分離：成果物はすべて `$DSH_HOME/.ssh`。`~/.ssh` への書き込みは冪等な `Include` 1 行のみ
 - ホスト単位の生成：`Host` ブロック（0600）、秘密鍵（0600）、派生公開鍵 `.pub`（0644、`ssh-keygen -y`）
-- `autoInclude`：`~/.ssh/config` に冪等に `Include` を 1 行追記し、通常の `ssh`/`git` で解決可能に
+- `autoInclude`：`~/.ssh/config` の最初の `Host` ブロック前に冪等に `Include` を 1 行挿入し、通常の `ssh`/`git` で解決可能に
 - 自己修復：冪等リコンサイル、ホスト削除時の孤立ディレクトリ掃除、無効エントリは警告付きスキップ
 
 **インストール**
@@ -120,7 +120,7 @@ Gestiona claves SSH e configuración por host desde la tarjeta de plugins de DSH
 - Tarjeta nativa: usa el formulario estándar de 0.2.x; los cambios se aplican en caliente (config volatile), sin reiniciar
 - Aislado: todo vive en `$DSH_HOME/.ssh`; la única escritura en `~/.ssh` es una línea `Include` idempotente
 - Por host: bloque `Host` (0600), clave privada (0600), pública derivada `.pub` (0644, vía `ssh-keygen -y`)
-- `autoInclude`: añade una línea `Include` idempotente a `~/.ssh/config` para que `ssh`/`git` resuelvan los hosts
+- `autoInclude`: inserta una línea `Include` idempotente antes del primer bloque `Host` de `~/.ssh/config` para que `ssh`/`git` resuelvan los hosts
 - Autocuración: reconciliación idempotente, limpieza de huérfanos, entradas inválidas omitidas con aviso
 
 **Instalación**
@@ -175,7 +175,7 @@ flowchart TD
         PRES{"Include already in ~/.ssh/config?"}
         PRES -->|"yes"| OK["Nothing to do"]
         PRES -->|"no"| MKF["Ensure flat config exists"]
-        MKF --> APP["Append Include to ~/.ssh/config, keep content and mode, re-check before write"]
+        MKF --> APP["Insert Include before first Host/Match block of ~/.ssh/config, keep content and mode, re-check"]
     end
 
     FP -->|"yes"| VAL
@@ -213,7 +213,7 @@ flowchart LR
     KEY -->|"ssh-keygen -y"| PUB
     AUTO -.->|"gates: on + hosts > 0"| IMP["ensureSshImport()"]
     IMP -.->|"create if missing"| FLAT
-    IMP -->|"append Include line"| OUTER["~/.ssh/config"]
+    IMP -->|"insert Include line before first Host block"| OUTER["~/.ssh/config"]
 
     OUTER -->|"Include"| FLAT
     FLAT -->|"Include config.d/*/config"| HCFG
