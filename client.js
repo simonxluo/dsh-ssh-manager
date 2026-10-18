@@ -33,6 +33,7 @@ const en = {
 	"action.refresh": "Refresh",
 	"empty": "No hosts configured yet — add one in the plugin configuration card.",
 	"error.load": "Failed to load hosts: ",
+	"error.probe": "Probe failed: ",
 	"key.has": "Has managed key",
 	"key.none": "No managed key",
 	"ms": "ms",
@@ -57,6 +58,7 @@ const zh = {
 	"action.refresh": "刷新",
 	"empty": "尚未配置主机——在插件配置卡片中添加。",
 	"error.load": "加载主机失败：",
+	"error.probe": "探测失败：",
 	"key.has": "含托管密钥",
 	"key.none": "无托管密钥",
 	"ms": "毫秒",
@@ -81,6 +83,7 @@ const ja = {
 	"action.refresh": "更新",
 	"empty": "ホストが未設定です — プラグイン設定カードで追加してください。",
 	"error.load": "ホストの読み込みに失敗：",
+	"error.probe": "確認に失敗：",
 	"key.has": "管理鍵あり",
 	"key.none": "管理鍵なし",
 	"ms": "ミリ秒",
@@ -105,6 +108,7 @@ const es = {
 	"action.refresh": "Actualizar",
 	"empty": "Aún no hay hosts configurados — añade uno en la tarjeta de configuración del plugin.",
 	"error.load": "Error al cargar hosts: ",
+	"error.probe": "Error al comprobar: ",
 	"key.has": "Con clave gestionada",
 	"key.none": "Sin clave gestionada",
 	"ms": "ms",
@@ -253,7 +257,7 @@ function SshManagerSection(props, ctx) {
 			setProbed(value.probed || {});
 			setError("");
 		} catch (err) {
-			if (alive.current) setError(String(err && err.message ? err.message : err));
+			if (alive.current) setError(t("error.load") + String(err && err.message ? err.message : err));
 		}
 	}, []);
 
@@ -270,7 +274,7 @@ function SshManagerSection(props, ctx) {
 			if (!alive.current) return;
 			setProbed((prev) => Object.assign({}, prev, value.results));
 		} catch (err) {
-			if (alive.current) setError(String(err && err.message ? err.message : err));
+			if (alive.current) setError(t("error.probe") + String(err && err.message ? err.message : err));
 		} finally {
 			if (alive.current) setProbing(false);
 		}
@@ -313,7 +317,7 @@ function SshManagerSection(props, ctx) {
 					onClick: () => { probeAll(); },
 					disabled: probing,
 				}, probing ? t("status.probing") : t("action.probeAll")))),
-		error ? h("div", { style: { color: "#dc2626", fontSize: "13px" } }, t("error.load"), error) : null,
+		error ? h("div", { style: { color: "#dc2626", fontSize: "13px" } }, error) : null,
 		hosts === null ? h("div", { style: { opacity: 0.6, fontSize: "13px" } }, "…") :
 		hosts.length === 0 ? h("div", { style: { opacity: 0.65, fontSize: "13px", padding: "16px 0" } }, t("empty")) :
 		h("table", { style: { width: "100%", borderCollapse: "collapse" } },

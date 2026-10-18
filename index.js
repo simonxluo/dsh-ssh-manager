@@ -145,19 +145,6 @@ export function hostSummaries(hosts) {
 		}));
 }
 
-/** Same-origin check for panel requests, mirroring the import route's rule. */
-function isTrustedPanelRequest(request) {
-	const origin = request.headers.origin;
-	const host = request.headers.host;
-	if (origin === undefined || host === undefined) return false;
-	try {
-		const parsed = new URL(origin);
-		return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.host === host;
-	} catch {
-		return false;
-	}
-}
-
 /** Hostnames a browser may legitimately reach the panel through. */
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 
@@ -184,20 +171,42 @@ function hostVerdict(host) {
 }
 
 /**
- * Verdict on a state-changing POST: `undefined` to proceed, otherwise the
- * reason to refuse. isTrustedPanelRequest already demands an http(s) `Origin`
- * matching the `Host` header; this additionally pins the origin's hostname
- * (port stripped) to the localhost set, so a rebound domain that resolves to
- * 127.0.0.1 cannot drive probes even when it mirrors the Host header.
+ * Verdict on a state-changing POST (dsh-email semantics): `undefined` to
+ * proceed, otherwise `{status, message}`.
+ *
+ * - `application/json` is not a simple-request content type, so a cross-origin
+ *   caller is forced into a preflight, which this route never answers with
+ *   `Access-Control-Allow-Origin`.
+ * - `Origin`, when it names an http(s) page, must be a localhost origin. Other
+ *   schemes are left to the next check: the desktop host loads its UI through
+ *   a custom protocol (`dsh-app://app`), and a hostile page cannot produce one.
+ * - `Sec-Fetch-Site`, when present, must be `same-origin` (or `none`). This is
+ *   what catches an opaque `Origin: null` from a sandboxed iframe.
+ *
+ * Headers a non-browser client omits are not fabricatable by page script, so
+ * their absence is allowed rather than treated as a rejection.
  */
-function postVerdict(request) {
-	if (!isTrustedPanelRequest(request)) return 'untrusted request';
-	try {
-		// WHATWG URL keeps IPv6 literal hostnames bracketed, matching the set.
-		const hostname = new URL(request.headers.origin).hostname.toLowerCase();
-		if (!LOCAL_HOSTNAMES.has(hostname)) return `origin "${request.headers.origin}" is not allowed to write dsh-ssh-manager settings`;
-	} catch {
-		return 'untrusted request';
+function postVerdict(headers) {
+	const contentType = String(headers['content-type'] ?? '');
+	if (!contentType.toLowerCase().includes('application/json')) {
+		return { status: 415, message: 'dsh-ssh-manager panel accepts application/json only' };
+	}
+	const origin = headers.origin;
+	if (typeof origin === 'string' && origin.trim() !== '') {
+		let url;
+		try {
+			url = new URL(origin);
+		} catch {
+			url = undefined;
+		}
+		if (url !== undefined && (url.protocol === 'http:' || url.protocol === 'https:')
+			&& !LOCAL_HOSTNAMES.has(url.hostname.toLowerCase())) {
+			return { status: 403, message: `origin "${origin}" is not allowed to write dsh-ssh-manager settings` };
+		}
+	}
+	const site = headers['sec-fetch-site'];
+	if (typeof site === 'string' && site !== '' && site !== 'same-origin' && site !== 'none') {
+		return { status: 403, message: `a ${site} request may not write dsh-ssh-manager settings` };
 	}
 	return undefined;
 }
@@ -280,9 +289,9 @@ function installPanelWeb(ctx, config) {
 						// A page the user visits can POST here cross-origin as a
 						//「simple request」and drive probes; these checks are the
 						// part of that a page script cannot forge away.
-						const post = postVerdict(request);
+						const post = postVerdict(request.headers);
 						if (post !== undefined) {
-							sendPanelJson(response, 403, { ok: false, error: { code: 'untrusted', message: post } });
+							sendPanelJson(response, post.status, { ok: false, error: { code: 'untrusted', message: post.message } });
 							return;
 						}
 					}
