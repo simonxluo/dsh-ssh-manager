@@ -1,16 +1,11 @@
 // dsh-ssh-manager — Client half: the「SSH 管理」settings section.
 //
-// Apple-aesthetic redesign of the management page:
-//   - iOS/macOS large title + toolbar, grouped inset lists with hairline
-//     separators, tinted controls, stat tiles.
-//   - Add/Edit runs in a sheet (in-page sub-window): scrim with backdrop
-//     blur, focus trap, Escape to close, autofocus first field.
-//   - Delete confirms through an alert dialog (replaces window.confirm).
-// Theming rides exclusively on --dsw-alias-* tokens; semantic status colors
-// come from state-* tokens via color-mix. Source of truth for the list is
-// the Host plugin's row config (surfaced as metadata only); connectivity
-// comes from POST {action:'probe'} on the panel route. React comes from the
-// browser module table.
+// Three seats share one data plane (panel GET + probe/stats POST):
+//   - settings.section: the management page (Apple-style inset lists).
+//   - sidebar.panellist icon + main keyed slot: the embedded main panel.
+//   - sidebar.right.pane.tab / .title + a sidebarRightTabs type: a compact
+//    「SSH」tab in the right sidebar, opened from the Start guide card,
+//     with inline per-host machine info (dshm-s-* styles).
 window.__ModuleLoader__.load({ id: "dsh-ssh-manager", factory: (require) => {
 var module = { exports: {} }; var exports = module.exports;
 "use strict";
@@ -88,6 +83,9 @@ const en = {
 	"fmt.day": "d",
 	"fmt.hour": "h",
 	"fmt.min": "m",
+	"side.title": "SSH",
+	"side.guide.title": "SSH hosts",
+	"side.guide.sub": "Live status of your saved SSH hosts, right beside the conversation.",
 };
 
 const zh = {
@@ -155,6 +153,9 @@ const zh = {
 	"fmt.day": " 天",
 	"fmt.hour": " 小时",
 	"fmt.min": " 分钟",
+	"side.title": "SSH",
+	"side.guide.title": "SSH 主机",
+	"side.guide.sub": "在对话旁边实时查看已保存主机的连通与负载。",
 };
 
 const ja = {
@@ -222,6 +223,9 @@ const ja = {
 	"fmt.day": "日",
 	"fmt.hour": "時間",
 	"fmt.min": "分",
+	"side.title": "SSH",
+	"side.guide.title": "SSH ホスト",
+	"side.guide.sub": "会話の横で保存済みホストの状態と負荷をリアルタイム確認。",
 };
 
 const es = {
@@ -289,6 +293,9 @@ const es = {
 	"fmt.day": " d",
 	"fmt.hour": " h",
 	"fmt.min": " min",
+	"side.title": "SSH",
+	"side.guide.title": "Hosts SSH",
+	"side.guide.sub": "Estado en vivo de tus hosts SSH, junto a la conversación.",
 };
 
 // ---- i18n: follow the harness locale service (pattern from dsh-email) ----
@@ -484,6 +491,36 @@ const STYLE_CSS = `
 .dshm-kv+.dshm-kv{border-top:1px solid var(--dsw-alias-border-l2)}
 .dshm-kv-k{color:var(--dsw-alias-label-tertiary);flex:0 0 auto}
 .dshm-kv-v{font-weight:500;text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* ---- 右侧栏紧凑视图（dshm-s-*）：容器 .tabBody 为 flex 列 + overflow:hidden，根节点自行滚动 ---- */
+.dshm-s-root{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:12px 12px 16px;font-variant-numeric:tabular-nums}
+.dshm-s-head{display:flex;align-items:center;gap:7px;flex:0 0 auto}
+.dshm-s-title{font-size:12.5px;font-weight:650;letter-spacing:-.01em;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dshm-s-badge{font-size:11px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;font-variant-numeric:tabular-nums}
+.dshm-s-seclabel{font-size:10px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;color:var(--dsw-alias-label-tertiary);padding:0 2px;flex:0 0 auto}
+.dshm-s-group{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);border-radius:11px;overflow:hidden}
+.dshm-s-item + .dshm-s-item{border-top:1px solid var(--dsw-alias-border-l2)}
+.dshm-s-row{display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;min-height:38px;box-sizing:border-box;cursor:pointer;background:transparent;border:none;text-align:inherit;color:inherit;font:inherit;transition:background .15s}
+.dshm-s-row:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary) 5%,transparent)}
+.dshm-s-row[aria-expanded="true"]{background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 8%,transparent)}
+.dshm-s-row:focus-visible{outline:none;box-shadow:inset 0 0 0 3px color-mix(in srgb,var(--dsw-alias-state-business-primary) 32%,transparent)}
+.dshm-s-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}
+.dshm-s-name{font-size:12.5px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dshm-s-sub{font-size:10.5px;color:var(--dsw-alias-label-tertiary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dshm-s-status{font-size:11px;white-space:nowrap;color:var(--dsw-alias-label-tertiary);flex:0 0 auto;font-variant-numeric:tabular-nums}
+.dshm-s-status--ok{color:var(--dsw-alias-state-success-primary)}
+.dshm-s-status--fail{color:var(--dsw-alias-state-error-primary)}
+.dshm-s-info{padding:9px 11px 11px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 3.5%,transparent);display:flex;flex-direction:column;gap:9px;animation:dsh-ssh-fade .2s ease}
+.dshm-s-info-head{display:flex;align-items:center;gap:8px;min-width:0}
+.dshm-s-info-meta{font-size:10.5px;color:var(--dsw-alias-label-tertiary);line-height:1.55;overflow-wrap:anywhere}
+.dshm-s-info .dshm-meter-name{font-size:11px}
+.dshm-s-info .dshm-meter-val{font-size:10.5px}
+.dshm-s-info .dshm-meter{height:5px}
+.dshm-s-info .dshm-error{padding:7px 10px;font-size:11px;border-radius:8px}
+.dshm-s-info .dshm-info-loading{padding:14px 0 10px;font-size:11.5px}
+.dshm-s-empty{padding:20px 12px;display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--dsw-alias-label-tertiary);font-size:11.5px;text-align:center}
+.dshm-s-empty .dshm-ico{opacity:.45}
+.dshm-s-error{font-size:11.5px;padding:8px 11px;border-radius:9px}
+.dshm-s-chip{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (prefers-reduced-motion:reduce){.dshm-root *{animation:none!important;transition:none!important}}
 `;
 
@@ -763,6 +800,236 @@ function InfoSheet(props) {
 		h("div", { className: "dshm-sheet-foot" },
 			h(Btn, { onClick: props.onClose }, t("info.close")),
 			h(Btn, { variant: "filled", wide: true, onClick: () => run() }, t("info.refresh"))));
+}
+
+// ---- 右侧栏「SSH」标签页（sidebar.right.pane.tab / .title） ----
+
+/** 右侧栏标签页身份：类型注册 id 同时是 body/title 两个 keyed 插槽的 key。 */
+const SIDE_ID = "dsh-ssh-manager/sidebar";
+/** 页类型 kind（openTab 的判别值，右侧栏按 sidebar://<kind> 记账）。 */
+const SIDE_KIND = "ssh-manager";
+
+/**
+ * Guide（Start）卡片图标：宿主 EntryBox 以 `<Icon size className>` 调用，
+ * 约定与官方 terminal 标签页一致；线性终端图形，currentColor 走主题。
+ */
+function SideGuideIcon(props) {
+	const size = (props && props.size) || 22;
+	return h("svg", {
+		width: size, height: size, viewBox: "0 0 24 24", fill: "none",
+		"aria-hidden": true, className: (props && props.className) || undefined,
+	},
+		h("rect", { x: 2.75, y: 4.25, width: 18.5, height: 15.5, rx: 2.75, stroke: "currentColor", strokeWidth: 1.6 }),
+		h("path", { d: "M6.75 9.25l2.9 2.75-2.9 2.75", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" }),
+		h("path", { d: "M12.25 14.75h4.9", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round" }));
+}
+
+/** 标签 chip 标题：终端图标 + 「SSH」（语言切换时随 relocalize 重渲染）。 */
+function SshSideTitle(props) {
+	return h(React.Fragment, null,
+		h(Ico, { name: "terminal", size: 13 }),
+		h("span", { className: "dshm-s-chip" }, t("side.title")));
+}
+
+/**
+ * 行内机器信息（展开区）：挂载即采集一次，可手动刷新；失败显示原因并
+ * 保留旧数据。数据同 InfoSheet —— 面板 {action:'stats'}。
+ */
+function SideInfo(props) {
+	const [data, setData] = useState(undefined);
+	const [error, setError] = useState("");
+	const [busy, setBusy] = useState(false);
+	const alive = useRef(true);
+	useEffect(() => () => { alive.current = false; }, []);
+	const run = useCallback(async () => {
+		setBusy(true);
+		setError("");
+		try {
+			const value = await api("stats", { target: props.target });
+			if (!alive.current) return;
+			if (value && value.ok === false) setError(String(value.error || "unknown error"));
+			else setData(value);
+		} catch (err) {
+			if (alive.current) setError(String(err && err.message ? err.message : err));
+		} finally {
+			if (alive.current) setBusy(false);
+		}
+	}, [props.target]);
+	useEffect(() => { run(); }, [run]);
+
+	const na = t("info.na");
+	const d = data;
+	const usedText = (view) => view && typeof view.usedPct === "number"
+		? view.usedPct + "% · " + fmtKb(view.usedKb) + " / " + fmtKb(view.totalKb)
+		: na;
+	return h("div", { className: "dshm-s-info" },
+		h("div", { className: "dshm-s-info-head" },
+			h("span", { className: "dshm-s-sub", style: { flex: "1 1 auto", minWidth: 0 }, title: props.endpoint }, props.endpoint),
+			h(Btn, {
+				size: "sm", variant: "plain", iconOnly: true, onClick: () => run(), disabled: busy,
+				title: t("info.refresh"), ariaLabel: t("info.refresh"),
+			}, busy ? h("span", { className: "dshm-spin" }) : h(Ico, { name: "refresh", size: 12 }))),
+		error !== "" ? h("div", { className: "dshm-error", role: "alert" },
+			h(Ico, { name: "warn", size: 12 }),
+			h("span", null, t("info.error") + error)) : null,
+		d === undefined && error === ""
+			? h("div", { className: "dshm-info-loading" }, h("span", { className: "dshm-spin" }), t("info.loading"))
+			: null,
+		d === undefined ? null : h(React.Fragment, null,
+			h(Meter, { label: t("info.cpu"), pct: d.cpuPct, value: typeof d.cpuPct === "number" ? d.cpuPct + "%" : na }),
+			h(Meter, { label: t("info.mem"), pct: d.mem ? d.mem.usedPct : null, value: usedText(d.mem) }),
+			d.swap && d.swap.totalKb > 0
+				? h(Meter, { label: t("info.swap"), pct: d.swap.usedPct, value: usedText(d.swap) })
+				: null,
+			h(Meter, { label: t("info.disk"), pct: d.disk ? d.disk.usedPct : null, value: usedText(d.disk) }),
+			h("div", { className: "dshm-s-info-meta" },
+				(d.os ? d.os + " · " : "") + fmtUptime(d.uptimeS) + " · " + t("info.collected") + " " + new Date(d.at).toLocaleTimeString())));
+}
+
+/**
+ * 右侧栏标签页 body：紧凑主机列表（状态点 + 延迟），行点击展开行内机器
+ * 信息；头部为可达数 + 刷新 + 全部探测。数据与主面板同源（面板 GET +
+ * probe/stats POST），挂载加载一次，此后每 RESCAN_MS 自动探测。
+ */
+function SshSideTab(props) {
+	const [, setLangTick] = useState(0);
+	const [hosts, setHosts] = useState(null);
+	const [connections, setConnections] = useState([]);
+	const [probed, setProbed] = useState({});
+	const [probing, setProbing] = useState(false);
+	const [error, setError] = useState("");
+	const [open, setOpen] = useState(null);
+	const alive = useRef(true);
+	const probeRef = useRef(null);
+	useEffect(() => () => { alive.current = false; }, []);
+	useEffect(() => {
+		const redraw = () => setLangTick((v) => v + 1);
+		relocalizeHooks.add(redraw);
+		return () => { relocalizeHooks.delete(redraw); };
+	}, []);
+
+	const load = useCallback(async () => {
+		try {
+			const value = await api(undefined);
+			if (!alive.current) return;
+			setHosts(value.hosts);
+			setConnections(value.connections || []);
+			setProbed(value.probed || {});
+			setError("");
+		} catch (err) {
+			if (alive.current) setError(t("error.load") + String(err && err.message ? err.message : err));
+		}
+	}, []);
+
+	const probeAll = useCallback(async () => {
+		setProbing(true);
+		setProbed((prev) => {
+			const next = Object.assign({}, prev);
+			if (hosts) for (const item of hosts) next[item.alias] = "probing";
+			for (const item of connections) next["conn:" + item.alias] = "probing";
+			return next;
+		});
+		try {
+			const value = await api("probe");
+			if (!alive.current) return;
+			setProbed((prev) => Object.assign({}, prev, value.results));
+		} catch (err) {
+			if (alive.current) setError(t("error.probe") + String(err && err.message ? err.message : err));
+		} finally {
+			if (alive.current) setProbing(false);
+		}
+	}, [hosts, connections]);
+
+	useEffect(() => { probeRef.current = probeAll; }, [probeAll]);
+	useEffect(() => {
+		(async () => { await load(); })();
+		const timer = setInterval(() => { if (probeRef.current) probeRef.current(); }, RESCAN_MS);
+		return () => clearInterval(timer);
+	}, []);
+
+	const statusOf = (key) => {
+		const status = probed[key];
+		if (status === "probing") return { kind: "probing" };
+		if (status && typeof status === "object") {
+			return status.ok === true
+				? { kind: "ok", latencyMs: status.latencyMs }
+				: { kind: "fail", error: String(status.error || "") };
+		}
+		return { kind: "unknown" };
+	};
+
+	const hostList = hosts || [];
+	const hostItems = hostList.map((item) => ({
+		key: item.alias, alias: item.alias, target: item.alias,
+		sub: item.user + "@" + item.url,
+	}));
+	const connItems = connections.map((item) => ({
+		key: "conn:" + item.alias, alias: item.alias, target: "conn:" + item.alias,
+		sub: item.user + "@" + item.ip + (item.port && item.port !== 22 ? ":" + item.port : ""),
+	}));
+	const total = hostItems.length + connItems.length;
+	const okTotal = hostItems.concat(connItems)
+		.reduce((n, it) => (statusOf(it.key).kind === "ok" ? n + 1 : n), 0);
+
+	const statusLabel = (s) => s.kind === "ok"
+		? (typeof s.latencyMs === "number" ? s.latencyMs + " " + t("ms") : t("status.ok"))
+		: s.kind === "probing" ? t("status.probing")
+		: s.kind === "fail" ? t("status.fail")
+		: "—";
+
+	const row = (it) => {
+		const s = statusOf(it.key);
+		const expanded = open !== null && open.target === it.target;
+		return h("div", { key: it.key, className: "dshm-s-item" },
+			h("button", {
+				type: "button",
+				className: "dshm-s-row",
+				"aria-expanded": expanded ? "true" : "false",
+				title: s.kind === "fail" ? (s.error || t("status.fail")) : it.sub,
+				onClick: () => setOpen((prev) => (prev !== null && prev.target === it.target ? null : { target: it.target, endpoint: it.sub })),
+			},
+				h(Dot, { kind: s.kind }),
+				h("span", { className: "dshm-s-main" },
+					h("span", { className: "dshm-s-name" }, it.alias),
+					h("span", { className: "dshm-s-sub dshm-mono" }, it.sub)),
+				h("span", { className: "dshm-s-status" + (s.kind === "ok" ? " dshm-s-status--ok" : s.kind === "fail" ? " dshm-s-status--fail" : "") },
+					statusLabel(s)),
+				h(Ico, { name: "info", size: 12 })),
+			expanded ? h(SideInfo, { key: it.target, target: it.target, endpoint: it.sub }) : null);
+	};
+
+	return h("div", { className: "dshm-s-root" },
+		h("style", null, STYLE_CSS),
+		h("div", { className: "dshm-s-head" },
+			h("span", { className: "dshm-s-title" }, t("side.guide.title")),
+			total > 0 ? h("span", { className: "dshm-s-badge" }, okTotal + "/" + total + " " + t("stat.reachable")) : null,
+			h(Btn, {
+				size: "sm", variant: "plain", iconOnly: true, onClick: () => load(),
+				title: t("action.refresh"), ariaLabel: t("action.refresh"),
+			}, h(Ico, { name: "refresh", size: 13 })),
+			h(Btn, {
+				size: "sm", variant: "plain", iconOnly: true, onClick: () => probeAll(), disabled: probing,
+				title: t("action.probeAll"), ariaLabel: t("action.probeAll"),
+			}, probing ? h("span", { className: "dshm-spin" }) : h(Ico, { name: "probe", size: 12 }))),
+
+		error !== "" ? h("div", { className: "dshm-error dshm-s-error", role: "alert" },
+			h(Ico, { name: "warn", size: 13 }),
+			h("span", null, error)) : null,
+
+		hosts === null
+			? h("div", { className: "dshm-s-group" }, h("div", { className: "dshm-s-empty" }, "…"))
+			: total === 0
+				? h("div", { className: "dshm-s-group" },
+					h("div", { className: "dshm-s-empty" },
+						h(Ico, { name: "tray", size: 20 }),
+						h("span", null, t("empty"))))
+				: h(React.Fragment, null,
+					hostItems.length > 0 ? h(React.Fragment, null,
+						h("span", { className: "dshm-s-seclabel" }, t("sec.keyhosts")),
+						h("div", { className: "dshm-s-group" }, hostItems.map(row))) : null,
+					connItems.length > 0 ? h(React.Fragment, null,
+						h("span", { className: "dshm-s-seclabel" }, t("sec.conns")),
+						h("div", { className: "dshm-s-group" }, connItems.map(row))) : null));
 }
 
 function SshManagerSection(props, ctx) {
@@ -1108,6 +1375,38 @@ function apply(ctx) {
 		name: "main",
 		key: PANEL_ID,
 	}, () => SshPanel()));
+
+	// 右侧栏「SSH」标签页（sidebar.right.pane.tab / .title 两个 keyed 插槽，
+	// key 必须等于类型注册的 id，宿主按 definition.id 派发）。插槽注册挂在
+	// 宿主声明上：右侧栏未加载时静默等待，不影响设置页与主面板。
+	ctx.slots.inject("sidebar.right.pane.tab", () => ctx.slots.register({
+		name: "sidebar.right.pane.tab",
+		key: SIDE_ID,
+	}, (props) => SshSideTab(props)));
+	ctx.slots.inject("sidebar.right.pane.tab.title", () => ctx.slots.register({
+		name: "sidebar.right.pane.tab.title",
+		key: SIDE_ID,
+	}, SshSideTitle));
+
+	// 标签「类型」注册（Start 卡片 → openTab(kind)）。sidebarRightTabs 是
+	// 右侧栏插件的可选服务：经 ctx.get 探测，缺失时跳过（不声明为硬依赖，
+	// 以免未来服务更名时整个插件被停用）。注册的清理挂在自身 fiber 上。
+	const sideTabs = ctx.get("sidebarRightTabs");
+	if (sideTabs && typeof sideTabs.register === "function") {
+		ctx.effect(() => sideTabs.register({
+			id: SIDE_ID,
+			kind: SIDE_KIND,
+			priority: "extension",
+			title: () => t("side.title"),
+			guide: [{
+				id: "ssh",
+				order: 60,
+				title: () => t("side.guide.title"),
+				description: () => t("side.guide.sub"),
+				icon: SideGuideIcon,
+			}],
+		}), "dsh-ssh-manager: right-sidebar tab type");
+	}
 }
 
 const inject = ["slots", "locale"];

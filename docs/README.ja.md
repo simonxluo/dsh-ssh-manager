@@ -6,7 +6,7 @@
 
 **DSH のプラグイン設定カードから SSH 鍵とホスト別 ssh 設定を管理。**
 
-[![version](https://img.shields.io/badge/version-1.1.0-0071e3)](https://github.com/simonxluo/dsh-ssh-manager/releases)
+[![version](https://img.shields.io/badge/version-1.2.0-0071e3)](https://github.com/simonxluo/dsh-ssh-manager/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-34c759)](https://github.com/simonxluo/dsh-ssh-manager/blob/main/LICENSE)
 [![DeepSeek Harness](https://img.shields.io/badge/DeepSeek_Harness-%E2%89%A5_0.2.1--rc.1-8957e5)](https://github.com/simonxluo/dsh-ssh-manager)
 [![platform](https://img.shields.io/badge/platform-macOS_%7C_Linux-8E8E93)](https://github.com/simonxluo/dsh-ssh-manager)
@@ -39,6 +39,8 @@ DSH のプラグイン設定カードから SSH 鍵とホスト別 ssh 設定を
 - **Apple 風設定ページ**：大きなタイトル、統計タイル、ヘアライン区切りのグループ化リスト。追加・編集はシート（フォーカストラップ + Escape）、削除はアラートで確認。色はすべて `--dsw-alias-*` テーマトークンを使用
 - **マシン情報（ⓘ）**：各行の情報ボタンでリアルタイム SSH スナップショットを表示——CPU / メモリ / スワップ / ディスクのメーター（60% 以上で警告色、85% 以上でエラー色）と負荷・稼働時間・OS・カーネルなど。鍵ホストは管理エイリアス経由、パスワード接続は秘密を含まない `SSH_ASKPASS` ヘルパー（sshpass 不要）で収集し、パスワードは argv・ディスクを経由しない
 - **組み込みパネル**：サイドバーのターミナルアイコンからワンクリックで開くメインパネルとしても動作（設定ページと同一コンポーネント）
+- **右サイドバータブ**：右サイドバーの「SSH」タブを Start カードから開ける——ステータスドット＋レイテンシ付きのコンパクトなホスト一覧が会話の横に常駐し、行をタップすると CPU / メモリ / スワップ / ディスクのメーター、稼働時間、OS を行内に展開（手動更新も可）
+- **エージェントツール**：読み取り専用の `ssh_list` / `ssh_search` が管理リスト（エイリアス・URL/ユーザー・IP/ポート・ワークスペース＋プローブキャッシュ、鍵やパスワードは含まない）を公開——「どのサーバーがある？」「キーワードでホストを探す」をファイルなしで回答可能。大文字小文字を区別しない部分一致、スペース区切りの複数キーワードはすべて一致が必要
 - `autoInclude`：`~/.ssh/config` の最初の `Host` ブロック前に冪等に `Include` を 1 行挿入し、通常の `ssh`/`git` で解決可能に
 - 自己修復：冪等リコンサイル、ホスト削除時の孤立ディレクトリ掃除、無効エントリは警告付きスキップ
 
@@ -72,10 +74,11 @@ autoInclude: true
 - [x] ホスト別の接続テスト（プローブボタン、TCP + SSH ハンドシェイク）
 - [x] カスタム UI（Apple 風設定ページ + 組み込みメインパネル）
 - [x] ホストごとのリアルタイムマシン情報（SSH 経由で CPU / メモリ / ディスク）
+- [x] 右サイドバーの「SSH」タブ（Start カード → コンパクト一覧＋行内マシン情報）
 - [ ] 既存 `~/.ssh/config` のワンクリック取り込み
 - [ ] カード内での鍵生成（`ed25519`）
 - [ ] `known_hosts` 管理（`ssh-keyscan`）
-- [ ] エージェント向けヘルスチェックツール
+- [x] エージェント向けツール（`ssh_list` 一覧 + `ssh_search` あいまい検索）
 
 ---
 

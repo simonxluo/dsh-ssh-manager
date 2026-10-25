@@ -6,7 +6,7 @@
 
 **Manage SSH identity keys and per-host ssh config from the DeepSeek Harness plugin card.**
 
-[![version](https://img.shields.io/badge/version-1.1.0-0071e3)](https://github.com/simonxluo/dsh-ssh-manager/releases)
+[![version](https://img.shields.io/badge/version-1.2.0-0071e3)](https://github.com/simonxluo/dsh-ssh-manager/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-34c759)](https://github.com/simonxluo/dsh-ssh-manager/blob/main/LICENSE)
 [![DeepSeek Harness](https://img.shields.io/badge/DeepSeek_Harness-%E2%89%A5_0.2.1--rc.1-8957e5)](https://github.com/simonxluo/dsh-ssh-manager)
 [![platform](https://img.shields.io/badge/platform-macOS_%7C_Linux-8E8E93)](https://github.com/simonxluo/dsh-ssh-manager)
@@ -40,6 +40,8 @@ Manage SSH identity keys and per-host ssh config from the DSH plugin card — fi
 - **Apple-style settings page**: large title, stat tiles, and grouped inset lists with hairline separators; add/edit opens as a sheet (focus trap + Escape), delete confirms through an alert dialog — all colors ride on `--dsw-alias-*` theme tokens
 - **Machine info (ⓘ)**: every row has an info button that opens a sheet with a live SSH snapshot — CPU / memory / swap / disk meters (warn ≥ 60%, error ≥ 85%), load, uptime, OS, kernel, hostname, cores; key hosts collect over their managed alias, password connections through a secret-free `SSH_ASKPASS` shim (no `sshpass` needed), and the password never crosses argv or disk
 - **Embedded panel**: the manager also lives as a one-click main panel beside the conversation (sidebar terminal icon), sharing the same component as the Settings page
+- **Right-sidebar tab**: an「SSH」tab in the right sidebar, opened from the Start guide card — a compact host list (status dot + latency) that stays beside your conversation; tap a row to expand inline machine info (CPU / memory / swap / disk meters, uptime, OS) with manual refresh
+- **Agent tools**: read-only `ssh_list` / `ssh_search` expose the roster (alias · url/user · ip/port · workspace, cached probe results; secrets never included) so the assistant can answer "which servers do I have" and locate a host by fuzzy keyword — case-insensitive substring, space-separated keywords must all hit
 - `autoInclude`: inserts one idempotent `Include` line before the first `Host` block of `~/.ssh/config` so plain `ssh`/`git` resolves managed hosts
 - Self-healing: idempotent reconcile, orphan cleanup on host removal, invalid entries skipped with warnings
 
@@ -73,10 +75,11 @@ autoInclude: true
 - [x] Per-host connectivity probe (probe button, TCP + SSH handshake)
 - [x] Custom UI (Apple-style settings page + embedded main panel)
 - [x] Live machine info per host (CPU / memory / disk over SSH)
+- [x] Right-sidebar「SSH」tab beside the conversation (Start card → compact list + inline machine info)
 - [ ] One-click import from an existing `~/.ssh/config`
 - [ ] In-card key generation (`ed25519`), no paste needed
 - [ ] `known_hosts` management via `ssh-keyscan`
-- [ ] Agent-facing health tool (`ssh_hosts_check`)
+- [x] Agent-facing tools (`ssh_list` roster + `ssh_search` fuzzy lookup)
 
 ---
 

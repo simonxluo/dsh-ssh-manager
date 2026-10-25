@@ -6,7 +6,7 @@
 
 **Gestiona claves SSH e configuración por host desde la tarjeta de plugins de DeepSeek Harness.**
 
-[![version](https://img.shields.io/badge/version-1.1.0-0071e3)](https://github.com/simonxluo/dsh-ssh-manager/releases)
+[![version](https://img.shields.io/badge/version-1.2.0-0071e3)](https://github.com/simonxluo/dsh-ssh-manager/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-34c759)](https://github.com/simonxluo/dsh-ssh-manager/blob/main/LICENSE)
 [![DeepSeek Harness](https://img.shields.io/badge/DeepSeek_Harness-%E2%89%A5_0.2.1--rc.1-8957e5)](https://github.com/simonxluo/dsh-ssh-manager)
 [![platform](https://img.shields.io/badge/platform-macOS_%7C_Linux-8E8E93)](https://github.com/simonxluo/dsh-ssh-manager)
@@ -39,6 +39,8 @@ Gestiona claves SSH e configuración por host desde la tarjeta de plugins de DSH
 - **Página de ajustes estilo Apple**: título grande, tarjetas de estadísticas y listas agrupadas con separadores finos; añadir/editar abre una hoja (foco atrapado + Escape), eliminar confirma con un diálogo de alerta — los colores usan exclusivamente tokens de tema `--dsw-alias-*`
 - **Info de la máquina (ⓘ)**: el botón de información de cada fila abre una instantánea SSH en vivo — medidores de CPU / memoria / swap / disco (≥ 60% en advertencia, ≥ 85% en error), carga, tiempo activo, SO, kernel y más; los hosts con clave recopilan por su alias gestionado y las conexiones con contraseña usan un ayudante `SSH_ASKPASS` sin secretos (sin sshpass); la contraseña nunca pasa por argv ni por disco
 - **Panel integrado**: el gestor también vive como panel principal de un clic junto a la conversación (icono de terminal en la barra lateral), compartiendo el mismo componente que la página de ajustes
+- **Pestaña de la barra lateral derecha**: una pestaña「SSH」en la barra lateral derecha, abierta desde la tarjeta Start — una lista compacta de hosts (punto de estado + latencia) que permanece junto a tu conversación; toca una fila para expandir la info de la máquina en línea (medidores de CPU / memoria / swap / disco, tiempo activo, SO) con actualización manual
+- **Herramientas para agentes**: las herramientas de solo lectura `ssh_list` / `ssh_search` exponen el inventario (alias, url/usuario, ip/puerto, workspace + sondas en caché; nunca secretos) para que el asistente responda "¿qué servidores tengo?" y localice un host por palabra clave — subcadena sin distinción de mayúsculas, las palabras separadas por espacios deben coincidir todas
 - `autoInclude`: inserta una línea `Include` idempotente antes del primer bloque `Host` de `~/.ssh/config` para que `ssh`/`git` resuelvan los hosts
 - Autocuración: reconciliación idempotente, limpieza de huérfanos, entradas inválidas omitidas con aviso
 
@@ -72,10 +74,11 @@ autoInclude: true
 - [x] Prueba de conectividad por host (botón de sonda, TCP + handshake SSH)
 - [x] UI personalizada (página de ajustes estilo Apple + panel principal integrado)
 - [x] Info de máquina en vivo por host (CPU / memoria / disco por SSH)
+- [x] Pestaña「SSH」en la barra lateral derecha (tarjeta Start → lista compacta + info en línea)
 - [ ] Importación en un clic desde `~/.ssh/config`
 - [ ] Generación de claves en la tarjeta (`ed25519`)
 - [ ] Gestión de `known_hosts` (`ssh-keyscan`)
-- [ ] Herramienta de salud para agentes
+- [x] Herramientas para agentes (`ssh_list` inventario + `ssh_search` búsqueda difusa)
 
 ---
 
