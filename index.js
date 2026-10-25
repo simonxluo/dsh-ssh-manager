@@ -266,6 +266,184 @@ function probeConnectionOnce(alias, conn, logger) {
 	return promise;
 }
 
+// ---------------------------------------------------------------------------
+// Machine stats (the ⓘ button on each row).
+//
+// One best-effort POSIX `sh` snapshot runs over the same transport the row
+// already uses: key hosts through the materialized alias (BatchMode), password
+// connections through a secret-free askpass shim — the secret reaches the ssh
+// child via an environment variable, never via argv or a temp file. Output is
+// a `key=value` line protocol parsed host-side.
+// ---------------------------------------------------------------------------
+
+const STATS_TIMEOUT_MS = 20000;
+
+/** Remote snapshot; every value degrades to empty when its source is absent. */
+const STATS_SCRIPT = [
+	'H1=$(hostname 2>/dev/null || echo unknown)',
+	'K1=$(uname -sr 2>/dev/null || echo unknown)',
+	'OS1=$(. /etc/os-release 2>/dev/null; printf \'%s\' "$PRETTY_NAME")',
+	'[ -n "$OS1" ] || OS1=$(uname -s 2>/dev/null || echo unknown)',
+	'U1=0',
+	'[ -r /proc/uptime ] && U1=$(awk \'{printf "%d", $1}\' /proc/uptime)',
+	'L1=$(awk \'{print $1, $2, $3}\' /proc/loadavg 2>/dev/null || echo "0 0 0")',
+	'C1=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 0)',
+	'CP1=""',
+	'if [ -r /proc/stat ]; then',
+	'  A1=$(awk \'/^cpu /{print $2+$3+$4+$5+$6+$7+$8, $5+$6}\' /proc/stat)',
+	'  sleep 0.35',
+	'  A2=$(awk \'/^cpu /{print $2+$3+$4+$5+$6+$7+$8, $5+$6}\' /proc/stat)',
+	'  CP1=$(printf \'%s\\n%s\\n\' "$A1" "$A2" | awk \'NR==1{t1=$1;i1=$2}NR==2{t2=$1;i2=$2}END{d=t2-t1;if(d>0)printf "%.1f",(d-(i2-i1))*100/d}\')',
+	'fi',
+	'M1="0 0"',
+	'S1="0 0"',
+	'if [ -r /proc/meminfo ]; then',
+	'  M1=$(awk \'/^MemTotal:/{t=$2}/^MemAvailable:/{a=$2}/^MemFree:/{f=$2}END{if(a==0)a=f;print t+0, a+0}\' /proc/meminfo)',
+	'  S1=$(awk \'/^SwapTotal:/{t=$2}/^SwapFree:/{f=$2}END{print t+0, (t-f)+0}\' /proc/meminfo)',
+	'fi',
+	'D1=$(df -Pk / 2>/dev/null | awk \'NR==2{print $2+0, $3+0}\')',
+	'[ "$D1" = "0 0" ] && D1=$(df -Pk . 2>/dev/null | awk \'NR==2{print $2+0, $3+0}\')',
+	'printf \'hostname=%s\\nkernel=%s\\nos=%s\\nuptime=%s\\nload=%s\\ncores=%s\\ncpu_pct=%s\\nmem=%s\\nswap=%s\\ndisk=%s\\n\' "$H1" "$K1" "$OS1" "$U1" "$L1" "$C1" "$CP1" "$M1" "$S1" "$D1"',
+].join('\n');
+
+/**
+ * The askpass shim is secret-free (it just prints an env var), so it can live
+ * as a persistent 0700 helper next to connections.json; the password only ever
+ * travels through the child ssh process environment.
+ */
+export function askpassShimPath() {
+	const file = join(dirname(connectionsFile()), 'askpass.sh');
+	try {
+		// The integrations dir may not exist yet on a fresh install (a stats
+		// request can arrive before the first connection is ever saved).
+		mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+		writeFileMode(file, '#!/bin/sh\nprintf \'%s\\n\' "$DSH_SSH_MANAGER_SECRET"\n', 0o700);
+	} catch {
+		return null;
+	}
+	return file;
+}
+
+function num(value) {
+	const n = Number(value);
+	return Number.isFinite(n) ? n : null;
+}
+
+/** "total second" kB pair → [totalKb, secondKb], or null when unusable. */
+function kbPair(value) {
+	const parts = String(value ?? '').trim().split(/\s+/);
+	if (parts.length !== 2) return null;
+	const total = num(parts[0]);
+	const second = num(parts[1]);
+	if (total === null || second === null || total <= 0) return null;
+	return [total, second];
+}
+
+/** `key=value` lines → the normalized snapshot the panel serves. */
+export function parseStatsOutput(stdout, latencyMs) {
+	const raw = {};
+	for (const line of String(stdout ?? '').split('\n')) {
+		const at = line.indexOf('=');
+		if (at > 0) raw[line.slice(0, at)] = line.slice(at + 1).trim();
+	}
+	const load = (raw.load ?? '').split(/\s+/).map(num);
+	const pct = (total, used) => total > 0 ? Math.round((used / total) * 1000) / 10 : null;
+	const mem = kbPair(raw.mem);
+	const swap = kbPair(raw.swap);
+	const disk = kbPair(raw.disk);
+	const memView = mem === null ? null : (() => {
+		const usedKb = Math.max(0, mem[0] - mem[1]);
+		return { totalKb: mem[0], usedKb, usedPct: pct(mem[0], usedKb) };
+	})();
+	return {
+		ok: true,
+		at: Date.now(),
+		latencyMs,
+		hostname: raw.hostname || '',
+		os: raw.os || '',
+		kernel: raw.kernel || '',
+		cores: num(raw.cores),
+		uptimeS: num(raw.uptime),
+		load: load.length === 3 && load.every(v => v !== null) ? load : null,
+		// A missing /proc (BSD/macOS remotes) leaves cpu/mem/swap null; the
+		// sheet renders「unavailable」for those instead of lying with zeros.
+		cpuPct: num(raw.cpu_pct),
+		mem: memView,
+		swap: swap === null ? null : { totalKb: swap[0], usedKb: swap[1], usedPct: pct(swap[0], swap[1]) },
+		disk: disk === null ? null : { totalKb: disk[0], usedKb: disk[1], usedPct: pct(disk[0], disk[1]) },
+	};
+}
+
+/** One ssh stats round trip; never throws — failures become {ok:false}. */
+async function sshStats(args, env, logger, label) {
+	const started = Date.now();
+	try {
+		const { stdout } = await execFileAsync('ssh', args, { timeout: STATS_TIMEOUT_MS, maxBuffer: 256 * 1024, env });
+		return parseStatsOutput(stdout, Date.now() - started);
+	} catch (error) {
+		const message = firstLine(error.stderr) || firstLine(error.message);
+		logger?.debug?.('dsh-ssh-manager: stats %s failed: %s', label, message);
+		return { ok: false, at: Date.now(), latencyMs: Date.now() - started, error: message };
+	}
+}
+
+/** Key-host snapshot through the materialized alias (BatchMode, no prompts). */
+export function collectHostStats(alias, logger) {
+	return sshStats([
+		'-o', 'BatchMode=yes',
+		'-o', 'ConnectTimeout=6',
+		'-o', 'StrictHostKeyChecking=no',
+		'-o', 'UserKnownHostsFile=/dev/null',
+		'-o', 'LogLevel=ERROR',
+		'-T', alias, STATS_SCRIPT,
+	], { ...process.env, SSH_ASKPASS: '/bin/false', SSH_ASKPASS_REQUIRE: 'force' }, logger, alias);
+}
+
+/**
+ * Password-connection snapshot: `SSH_ASKPASS_REQUIRE=force` (OpenSSH ≥ 8.4)
+ * makes ssh answer the password prompt with the shim without a tty, so no
+ * sshpass is needed. `-F /dev/null` keeps the entry independent of the
+ * user's ssh config; pubkey auth is off because this row has no key.
+ */
+export async function collectConnectionStats(conn, logger) {
+	const password = String(conn?.password ?? '');
+	if (password.length === 0) {
+		return { ok: false, at: Date.now(), error: 'connection has no stored password' };
+	}
+	const shim = askpassShimPath();
+	if (shim === null) {
+		return { ok: false, at: Date.now(), error: 'could not prepare the askpass helper' };
+	}
+	return sshStats([
+		'-F', '/dev/null',
+		'-o', 'NumberOfPasswordPrompts=1',
+		'-o', 'PreferredAuthentications=password,keyboard-interactive',
+		'-o', 'PubkeyAuthentication=no',
+		'-o', 'ConnectTimeout=6',
+		'-o', 'StrictHostKeyChecking=no',
+		'-o', 'UserKnownHostsFile=/dev/null',
+		'-o', 'LogLevel=ERROR',
+		'-T', '-p', String(Number(conn.port) || 22),
+		`${String(conn.user ?? 'root')}@${String(conn.ip)}`, STATS_SCRIPT,
+	], {
+		...process.env,
+		SSH_ASKPASS: shim,
+		SSH_ASKPASS_REQUIRE: 'force',
+		DSH_SSH_MANAGER_SECRET: password,
+	}, logger, `conn:${conn.ip}`);
+}
+
+/** Run (or join) one stats collection per target, mirroring probeHostOnce. */
+export function statsOnce(target, run) {
+	const key = 'stats:' + target;
+	let promise = probeInflight.get(key);
+	if (promise === undefined) {
+		promise = Promise.resolve().then(run).finally(() => probeInflight.delete(key));
+		probeInflight.set(key, promise);
+	}
+	return promise;
+}
+
 /** Hostnames a browser may legitimately reach the panel through. */
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 
@@ -382,7 +560,9 @@ function readJsonBody(request, response) {
 
 /**
  * Mount the panel API: GET lists host metadata plus cached probe results;
- * POST {action:'probe', host?} runs a probe (all hosts when host is absent).
+ * POST {action:'probe', target?} runs a probe (all hosts when absent) and
+ * {action:'stats', target} collects one machine snapshot (CPU, memory, disk,
+ * load, uptime) over ssh for the row's ⓘ button.
  */
 function installPanelWeb(ctx, config) {
 	ctx.inject(['webServer'], (webCtx) => {
@@ -492,6 +672,30 @@ function installPanelWeb(ctx, config) {
 					}
 					probeResults.delete('conn:' + alias);
 					sendPanelJson(response, 200, { ok: true, value: { deleted: alias } });
+					return;
+				}
+				if (body?.action === 'stats') {
+					// One machine snapshot for the ⓘ button. The target is the
+					// same key probe uses: an alias, or `conn:<alias>`.
+					const target = String(body.target ?? '').trim();
+					if (safeHostName(target.startsWith('conn:') ? target.slice(5) : target) === null) {
+						sendPanelJson(response, 400, { ok: false, error: { code: 'bad-target', message: 'target must be a host alias or "conn:<alias>"' } });
+						return;
+					}
+					const connections = loadConnections();
+					let result;
+					if (target.startsWith('conn:')) {
+						const conn = connections[target.slice(5)];
+						result = conn === undefined
+							? { ok: false, at: Date.now(), error: 'unknown connection' }
+							: await statsOnce(target, () => collectConnectionStats(conn, ctx.logger));
+					} else {
+						const known = hostSummaries(hosts).some(summary => summary.alias === target);
+						result = !known
+							? { ok: false, at: Date.now(), error: 'unknown host' }
+							: await statsOnce(target, () => collectHostStats(target, ctx.logger));
+					}
+					sendPanelJson(response, 200, { ok: true, value: result });
 					return;
 				}
 				if (body?.action !== 'probe') {

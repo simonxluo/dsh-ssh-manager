@@ -1,6 +1,6 @@
 # dsh-ssh-manager
 
-`v1.0.1` · MIT · DeepSeek Harness ≥ 0.2.1-rc.1
+`v1.1.0` · MIT · DeepSeek Harness ≥ 0.2.1-rc.1
 
 **English** | [简体中文](docs/README.zh.md) | [日本語](docs/README.ja.md) | [Español](docs/README.es.md)
 
@@ -15,6 +15,7 @@ Manage SSH identity keys and per-host ssh config from the DSH plugin card — fi
 - Materializes per host: `Host` block (0600), private key (0600), derived `.pub` (0644, via `ssh-keygen -y`)
 - **Password connections**: ip / user / password entries with an optional alias (defaults to the ip) and a workspace binding, managed in the Settings panel — the password is visible only while first typed and write-only afterwards (0600 local store, never returned by the API); connectivity is probed over TCP
 - **Apple-style settings page**: large title, stat tiles, and grouped inset lists with hairline separators; add/edit opens as a sheet (focus trap + Escape), delete confirms through an alert dialog — all colors ride on `--dsw-alias-*` theme tokens
+- **Machine info (ⓘ)**: every row has an info button that opens a sheet with a live SSH snapshot — CPU / memory / swap / disk meters (warn ≥ 60%, error ≥ 85%), load, uptime, OS, kernel, hostname, cores; key hosts collect over their managed alias, password connections through a secret-free `SSH_ASKPASS` shim (no `sshpass` needed), and the password never crosses argv or disk
 - `autoInclude`: inserts one idempotent `Include` line before the first `Host` block of `~/.ssh/config` so plain `ssh`/`git` resolves managed hosts
 - Self-healing: idempotent reconcile, orphan cleanup on host removal, invalid entries skipped with warnings
 

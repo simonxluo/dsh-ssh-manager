@@ -1,6 +1,6 @@
 # dsh-ssh-manager
 
-`v1.0.1` · MIT · DeepSeek Harness ≥ 0.2.1-rc.1
+`v1.1.0` · MIT · DeepSeek Harness ≥ 0.2.1-rc.1
 
 [English](../README.md) | [简体中文](README.zh.md) | [日本語](README.ja.md) | **Español** | [Architecture (DAG)](../README.md#architecture)
 
@@ -15,6 +15,7 @@ Gestiona claves SSH e configuración por host desde la tarjeta de plugins de DSH
 - Por host: bloque `Host` (0600), clave privada (0600), pública derivada `.pub` (0644, vía `ssh-keygen -y`)
 - **Conexiones con contraseña**: entradas ip / usuario / contraseña con alias opcional (por defecto la IP) y workspace, gestionadas en el panel — la contraseña solo es visible al escribirla la primera vez, luego de solo escritura (almacén local 0600, nunca devuelta por la API); conectividad comprobada por TCP
 - **Página de ajustes estilo Apple**: título grande, tarjetas de estadísticas y listas agrupadas con separadores finos; añadir/editar abre una hoja (foco atrapado + Escape), eliminar confirma con un diálogo de alerta — los colores usan exclusivamente tokens de tema `--dsw-alias-*`
+- **Info de la máquina (ⓘ)**: el botón de información de cada fila abre una instantánea SSH en vivo — medidores de CPU / memoria / swap / disco (≥ 60% en advertencia, ≥ 85% en error), carga, tiempo activo, SO, kernel y más; los hosts con clave recopilan por su alias gestionado y las conexiones con contraseña usan un ayudante `SSH_ASKPASS` sin secretos (sin sshpass); la contraseña nunca pasa por argv ni por disco
 - `autoInclude`: inserta una línea `Include` idempotente antes del primer bloque `Host` de `~/.ssh/config` para que `ssh`/`git` resuelvan los hosts
 - Autocuración: reconciliación idempotente, limpieza de huérfanos, entradas inválidas omitidas con aviso
 

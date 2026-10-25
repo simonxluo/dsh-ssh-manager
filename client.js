@@ -66,6 +66,28 @@ const en = {
 	"alert.delete": "Delete",
 	"error.load": "Failed to load hosts: ",
 	"error.probe": "Request failed: ",
+	"action.info": "Machine info",
+	"info.title": "Machine info",
+	"info.sub": "Live usage snapshot collected over SSH.",
+	"info.loading": "Collecting machine info…",
+	"info.refresh": "Refresh",
+	"info.close": "Close",
+	"info.cpu": "CPU",
+	"info.mem": "Memory",
+	"info.disk": "Disk (/)",
+	"info.swap": "Swap",
+	"info.os": "Operating system",
+	"info.kernel": "Kernel",
+	"info.hostname": "Hostname",
+	"info.cores": "CPU cores",
+	"info.load": "Load (1/5/15 min)",
+	"info.uptime": "Uptime",
+	"info.collected": "Collected",
+	"info.error": "Could not collect machine info: ",
+	"info.na": "unavailable",
+	"fmt.day": "d",
+	"fmt.hour": "h",
+	"fmt.min": "m",
 };
 
 const zh = {
@@ -111,6 +133,28 @@ const zh = {
 	"alert.delete": "删除",
 	"error.load": "加载主机失败：",
 	"error.probe": "请求失败：",
+	"action.info": "机器信息",
+	"info.title": "机器信息",
+	"info.sub": "经 SSH 实时采集的资源快照。",
+	"info.loading": "正在采集机器信息…",
+	"info.refresh": "刷新",
+	"info.close": "关闭",
+	"info.cpu": "CPU",
+	"info.mem": "内存",
+	"info.disk": "磁盘 (/)",
+	"info.swap": "交换分区",
+	"info.os": "操作系统",
+	"info.kernel": "内核",
+	"info.hostname": "主机名",
+	"info.cores": "CPU 核心数",
+	"info.load": "负载（1/5/15 分钟）",
+	"info.uptime": "已运行",
+	"info.collected": "采集时间",
+	"info.error": "机器信息采集失败：",
+	"info.na": "暂不可用",
+	"fmt.day": " 天",
+	"fmt.hour": " 小时",
+	"fmt.min": " 分钟",
 };
 
 const ja = {
@@ -156,6 +200,28 @@ const ja = {
 	"alert.delete": "削除",
 	"error.load": "ホストの読み込みに失敗：",
 	"error.probe": "リクエストに失敗：",
+	"action.info": "マシン情報",
+	"info.title": "マシン情報",
+	"info.sub": "SSH 経由で収集したリアルタイムスナップショット。",
+	"info.loading": "マシン情報を収集中…",
+	"info.refresh": "更新",
+	"info.close": "閉じる",
+	"info.cpu": "CPU",
+	"info.mem": "メモリ",
+	"info.disk": "ディスク (/)",
+	"info.swap": "スワップ",
+	"info.os": "OS",
+	"info.kernel": "カーネル",
+	"info.hostname": "ホスト名",
+	"info.cores": "CPU コア数",
+	"info.load": "負荷（1/5/15 分）",
+	"info.uptime": "稼働時間",
+	"info.collected": "取得時刻",
+	"info.error": "マシン情報の収集に失敗：",
+	"info.na": "利用不可",
+	"fmt.day": "日",
+	"fmt.hour": "時間",
+	"fmt.min": "分",
 };
 
 const es = {
@@ -201,6 +267,28 @@ const es = {
 	"alert.delete": "Eliminar",
 	"error.load": "Error al cargar hosts: ",
 	"error.probe": "Error en la solicitud: ",
+	"action.info": "Info de la máquina",
+	"info.title": "Info de la máquina",
+	"info.sub": "Instantánea de uso recopilada por SSH.",
+	"info.loading": "Recopilando información…",
+	"info.refresh": "Actualizar",
+	"info.close": "Cerrar",
+	"info.cpu": "CPU",
+	"info.mem": "Memoria",
+	"info.disk": "Disco (/)",
+	"info.swap": "Intercambio",
+	"info.os": "Sistema operativo",
+	"info.kernel": "Kernel",
+	"info.hostname": "Nombre de host",
+	"info.cores": "Núcleos de CPU",
+	"info.load": "Carga (1/5/15 min)",
+	"info.uptime": "Tiempo activo",
+	"info.collected": "Recopilado",
+	"info.error": "No se pudo recopilar la información: ",
+	"info.na": "no disponible",
+	"fmt.day": " d",
+	"fmt.hour": " h",
+	"fmt.min": " min",
 };
 
 // ---- i18n: follow the harness locale service (pattern from dsh-email) ----
@@ -380,6 +468,20 @@ const STYLE_CSS = `
 .dshm-alert-title{font-size:13.5px;font-weight:700;padding:0 18px;letter-spacing:-.01em;text-align:center}
 .dshm-alert-msg{font-size:12px;color:var(--dsw-alias-label-tertiary);line-height:1.55;padding:6px 20px 0;max-width:280px;margin:0 auto;text-align:center}
 .dshm-alert-foot{display:flex;justify-content:center;gap:10px;padding:16px 16px 18px;width:100%;box-sizing:border-box}
+.dshm-info-loading{display:flex;align-items:center;justify-content:center;gap:9px;padding:28px 0 24px;color:var(--dsw-alias-label-tertiary);font-size:12.5px}
+.dshm-info-loading .dshm-spin{width:13px;height:13px;border-width:2px}
+.dshm-meter-row{display:flex;flex-direction:column;gap:6px;min-width:0}
+.dshm-meter-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.dshm-meter-name{font-size:12px;font-weight:600;white-space:nowrap}
+.dshm-meter-val{font-size:11.5px;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dshm-meter{height:6px;border-radius:3px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 10%,transparent);overflow:hidden;flex:0 0 auto}
+.dshm-meter>i{display:block;height:100%;border-radius:inherit;background:var(--dsw-alias-state-business-primary);transition:width .5s cubic-bezier(.32,.72,0,1)}
+.dshm-meter--warn>i{background:var(--dsw-alias-state-warn-primary)}
+.dshm-meter--error>i{background:var(--dsw-alias-state-error-primary)}
+.dshm-kv{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:7.5px 14px;font-size:12px}
+.dshm-kv+.dshm-kv{border-top:1px solid var(--dsw-alias-border-l2)}
+.dshm-kv-k{color:var(--dsw-alias-label-tertiary);flex:0 0 auto}
+.dshm-kv-v{font-weight:500;text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (prefers-reduced-motion:reduce){.dshm-root *{animation:none!important;transition:none!important}}
 `;
 
@@ -410,6 +512,10 @@ function Ico(props) {
 			h("path", { d: "M8 2.6L14.4 13.4H1.6z" }),
 			h("path", { d: "M8 6.6v3" }),
 			h("path", { d: "M8 11.7v.01" }));
+		case "info": return h("svg", { ...common, strokeWidth: 1.4 },
+			h("circle", { cx: 8, cy: 8, r: 6.3 }),
+			h("path", { d: "M8 7.4v3.2" }),
+			h("path", { d: "M8 5v.01" }));
 		case "tray": return h("svg", common,
 			h("path", { d: "M2.6 8.6h2.9l1.1 1.8h2.8l1.1-1.8h2.9" }),
 			h("path", { d: "M3.4 8.6l1.1-4a1 1 0 0 1 1-.7h5a1 1 0 0 1 1 .7l1.1 4v3a1 1 0 0 1-1 1H4.4a1 1 0 0 1-1-1v-3z" }));
@@ -500,7 +606,7 @@ function Sheet(props) {
 		const panel = panelRef.current;
 		if (!panel) return;
 		const raf = requestAnimationFrame(() => {
-			const selector = props.alert === true ? "button" : "input, select, textarea";
+			const selector = props.alert === true ? "button" : "input, select, textarea, button";
 			const target = panel.querySelector(selector);
 			if (target) {
 				try { target.focus({ preventScroll: true }); } catch { /* focus is best-effort */ }
@@ -545,6 +651,114 @@ function Sheet(props) {
 		}, props.children));
 }
 
+// ---- 机器信息 sheet（行右侧 ⓘ 按钮 → SSH 快照） ----
+
+/** kB → 自适应二进制单位（KiB/MiB/GiB/TiB）。 */
+function fmtKb(kb) {
+	if (typeof kb !== "number" || !isFinite(kb) || kb < 0) return "—";
+	const units = ["KiB", "MiB", "GiB", "TiB"];
+	let v = kb;
+	let u = 0;
+	while (v >= 1024 && u < units.length - 1) { v /= 1024; u += 1; }
+	const text = v >= 100 ? String(Math.round(v)) : v >= 10 ? String(Math.round(v * 10) / 10) : String(Math.round(v * 100) / 100);
+	return text + " " + units[u];
+}
+
+/** 秒 → 「205 天 7 小时」样式；各语言单位来自 fmt.* 词条。 */
+function fmtUptime(seconds) {
+	if (typeof seconds !== "number" || !isFinite(seconds) || seconds < 0) return t("info.na");
+	const d = Math.floor(seconds / 86400);
+	const h = Math.floor((seconds % 86400) / 3600);
+	const m = Math.floor((seconds % 3600) / 60);
+	if (d > 0) return d + t("fmt.day") + (h > 0 ? " " + h + t("fmt.hour") : "");
+	if (h > 0) return h + t("fmt.hour") + (m > 0 ? " " + m + t("fmt.min") : "");
+	return m + t("fmt.min");
+}
+
+/** 进度仪表条：60% 起 warn、85% 起 error，缺数据显示 0 宽度 + unavailable。 */
+function Meter(props) {
+	const pct = typeof props.pct === "number" && isFinite(props.pct) ? Math.max(0, Math.min(100, props.pct)) : null;
+	const cls = "dshm-meter" + (pct === null ? "" : pct >= 85 ? " dshm-meter--error" : pct >= 60 ? " dshm-meter--warn" : "");
+	return h("div", { className: "dshm-meter-row" },
+		h("div", { className: "dshm-meter-top" },
+			h("span", { className: "dshm-meter-name" }, props.label),
+			h("span", { className: "dshm-meter-val" }, props.value)),
+		h("div", { className: cls, role: "img", "aria-label": props.label + " " + (pct === null ? t("info.na") : pct + "%") },
+			h("i", { style: { width: (pct === null ? 0 : pct) + "%" } })));
+}
+
+/** 分组列表里的 key-value 行。 */
+function KV(key, value) {
+	return h("div", { className: "dshm-kv" },
+		h("span", { className: "dshm-kv-k" }, key),
+		h("span", { className: "dshm-kv-v", title: String(value) }, value));
+}
+
+/**
+ * 机器信息子窗口：挂载即采集一次，页脚可手动刷新；数据来自面板
+ * {action:'stats'}（目标为别名或 conn:别名），失败展示原因并保留旧数据。
+ */
+function InfoSheet(props) {
+	const [data, setData] = useState(undefined);
+	const [error, setError] = useState("");
+	const [busy, setBusy] = useState(false);
+	const alive = useRef(true);
+	useEffect(() => () => { alive.current = false; }, []);
+	const run = useCallback(async () => {
+		setBusy(true);
+		setError("");
+		try {
+			const value = await api("stats", { target: props.target });
+			if (!alive.current) return;
+			if (value && value.ok === false) setError(String(value.error || "unknown error"));
+			else setData(value);
+		} catch (err) {
+			if (alive.current) setError(String(err && err.message ? err.message : err));
+		} finally {
+			if (alive.current) setBusy(false);
+		}
+	}, [props.target]);
+	useEffect(() => { run(); }, [run]);
+
+	const na = t("info.na");
+	const d = data;
+	const usedText = (view) => view && typeof view.usedPct === "number"
+		? view.usedPct + "% · " + fmtKb(view.usedKb) + " / " + fmtKb(view.totalKb)
+		: na;
+	const body = d === undefined ? null : h(React.Fragment, null,
+		h("div", { style: { display: "flex", flexDirection: "column", gap: "12px" } },
+			h(Meter, { label: t("info.cpu"), pct: d.cpuPct, value: typeof d.cpuPct === "number" ? d.cpuPct + "%" : na }),
+			h(Meter, { label: t("info.mem"), pct: d.mem ? d.mem.usedPct : null, value: usedText(d.mem) }),
+			d.swap && d.swap.totalKb > 0
+				? h(Meter, { label: t("info.swap"), pct: d.swap.usedPct, value: usedText(d.swap) })
+				: null,
+			h(Meter, { label: t("info.disk"), pct: d.disk ? d.disk.usedPct : null, value: usedText(d.disk) })),
+		h("div", { className: "dshm-group" },
+			KV(t("info.os"), d.os || na),
+			KV(t("info.kernel"), d.kernel || na),
+			KV(t("info.hostname"), d.hostname || na),
+			KV(t("info.cores"), typeof d.cores === "number" ? String(d.cores) : na),
+			KV(t("info.load"), d.load ? d.load.map(v => (typeof v === "number" ? v.toFixed(2) : "?")).join(" / ") : na),
+			KV(t("info.uptime"), fmtUptime(d.uptimeS)),
+			KV(t("info.collected"), new Date(d.at).toLocaleTimeString())));
+
+	return h(Sheet, { label: t("info.title"), onClose: props.onClose },
+		h("div", { className: "dshm-sheet-head" },
+			h("div", { className: "dshm-sheet-title" }, props.alias),
+			h("div", { className: "dshm-sheet-sub" }, props.endpoint + " · " + t("info.sub"))),
+		h("div", { className: "dshm-sheet-body" },
+			error !== "" ? h("div", { className: "dshm-error", role: "alert" },
+				h(Ico, { name: "warn", size: 14 }),
+				h("span", null, t("info.error") + error)) : null,
+			d === undefined && error === ""
+				? h("div", { className: "dshm-info-loading" }, h("span", { className: "dshm-spin" }), t("info.loading"))
+				: null,
+			body),
+		h("div", { className: "dshm-sheet-foot" },
+			h(Btn, { onClick: props.onClose }, t("info.close")),
+			h(Btn, { variant: "filled", wide: true, onClick: () => run() }, t("info.refresh"))));
+}
+
 function SshManagerSection(props, ctx) {
 	const [, setLangTick] = useState(0);
 	const [hosts, setHosts] = useState(null);
@@ -554,6 +768,7 @@ function SshManagerSection(props, ctx) {
 	const [error, setError] = useState("");
 	const [form, setForm] = useState(null);
 	const [confirmAlias, setConfirmAlias] = useState(null);
+	const [infoTarget, setInfoTarget] = useState(null);
 	const alive = useRef(true);
 	const probeRef = useRef(null);
 	useEffect(() => () => { alive.current = false; }, []);
@@ -676,7 +891,12 @@ function SshManagerSection(props, ctx) {
 					size: "sm", variant: "tinted", iconOnly: true,
 					onClick: () => probeOne(item.alias), disabled: s.kind === "probing",
 					title: t("action.probeOne"), ariaLabel: t("action.probeOne"),
-				}, h(Ico, { name: "probe", size: 11 }))));
+				}, h(Ico, { name: "probe", size: 11 })),
+				h(Btn, {
+					size: "sm", variant: "plain", iconOnly: true,
+					onClick: () => setInfoTarget({ target: item.alias, alias: item.alias, endpoint: item.user + "@" + item.url }),
+					title: t("action.info"), ariaLabel: t("action.info"),
+				}, h(Ico, { name: "info", size: 13 }))));
 	};
 
 	const connRow = (item) => {
@@ -714,7 +934,15 @@ function SshManagerSection(props, ctx) {
 					size: "sm", variant: "danger", iconOnly: true,
 					onClick: () => setConfirmAlias(item.alias),
 					title: t("conn.del"), ariaLabel: t("conn.del"),
-				}, h(Ico, { name: "trash", size: 12 }))));
+				}, h(Ico, { name: "trash", size: 12 })),
+				h(Btn, {
+					size: "sm", variant: "plain", iconOnly: true,
+					onClick: () => setInfoTarget({
+						target: key, alias: item.alias,
+						endpoint: item.user + "@" + item.ip + (item.port && item.port !== 22 ? ":" + item.port : ""),
+					}),
+					title: t("action.info"), ariaLabel: t("action.info"),
+				}, h(Ico, { name: "info", size: 13 }))));
 	};
 
 	const formField = (key, labelKey, placeholder, extra) => h("div", { className: "dshm-field" },
@@ -811,7 +1039,14 @@ function SshManagerSection(props, ctx) {
 			h("div", { className: "dshm-alert-msg" }, t("alert.deleteMsg")),
 			h("div", { className: "dshm-alert-foot" },
 				h(Btn, { wide: true, onClick: () => setConfirmAlias(null) }, t("conn.cancel")),
-				h(Btn, { variant: "destructive", wide: true, onClick: () => deleteConnection(confirmAlias) }, t("alert.delete")))) : null);
+				h(Btn, { variant: "destructive", wide: true, onClick: () => deleteConnection(confirmAlias) }, t("alert.delete")))) : null,
+
+		infoTarget !== null ? h(InfoSheet, {
+			target: infoTarget.target,
+			alias: infoTarget.alias,
+			endpoint: infoTarget.endpoint,
+			onClose: () => setInfoTarget(null),
+		}) : null);
 }
 
 

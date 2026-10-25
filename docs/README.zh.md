@@ -1,6 +1,6 @@
 # dsh-ssh-manager
 
-`v1.0.1` · MIT · DeepSeek Harness ≥ 0.2.1-rc.1
+`v1.1.0` · MIT · DeepSeek Harness ≥ 0.2.1-rc.1
 
 [English](../README.md) | **简体中文** | [日本語](README.ja.md) | [Español](README.es.md) | [Architecture (DAG)](../README.md#architecture)
 
@@ -15,6 +15,7 @@
 - 每主机落盘：`Host` 块（0600）、私钥（0600）、推导公钥 `.pub`（0644，`ssh-keygen -y`）
 - **密码连接**：以 ip / 用户 / 密码创建连接（别名可选，缺省用 IP），可绑定工作区，在设置面板管理——密码仅首次输入时可见，之后只写不可查（0600 本地存储，API 永不回传）；以 TCP 探测连通性
 - **Apple 风格设置页**：大标题、统计卡片与细分隔线的分组内嵌列表；新增/编辑以 sheet 子窗口呈现（焦点圈定 + Escape 关闭），删除走 alert 确认框——配色全部基于 `--dsw-alias-*` 主题 token
+- **机器信息（ⓘ）**：每行右侧的信息按钮打开实时 SSH 快照——CPU / 内存 / 交换分区 / 磁盘仪表条（≥60% 转警示色、≥85% 转错误色）与负载、运行时间、系统、内核等参数；密钥主机走托管别名采集，密码连接经无秘密的 `SSH_ASKPASS` 助手（无需 sshpass），密码不经 argv、不落盘
 - `autoInclude`：在 `~/.ssh/config` 的首个 `Host` 块前幂等插入一行 `Include`，普通 `ssh`/`git` 即可解析托管主机
 - 自愈：幂等收敛、删除主机自动清理孤儿目录、非法条目跳过并告警
 
