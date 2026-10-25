@@ -1,14 +1,37 @@
+<div align="center">
+
+<img src="icon.svg" width="108" alt="dsh-ssh-manager"/>
+
 # dsh-ssh-manager
 
-`v1.1.0` · MIT · DeepSeek Harness ≥ 0.2.1-rc.1
+**Manage SSH identity keys and per-host ssh config from the DeepSeek Harness plugin card.**
 
-**English** | [简体中文](docs/README.zh.md) | [日本語](docs/README.ja.md) | [Español](docs/README.es.md)
+[![version](https://img.shields.io/badge/version-1.1.0-0071e3)](https://github.com/simonxluo/dsh-ssh-manager/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-34c759)](https://github.com/simonxluo/dsh-ssh-manager/blob/main/LICENSE)
+[![DeepSeek Harness](https://img.shields.io/badge/DeepSeek_Harness-%E2%89%A5_0.2.1--rc.1-8957e5)](https://github.com/simonxluo/dsh-ssh-manager)
+[![platform](https://img.shields.io/badge/platform-macOS_%7C_Linux-8E8E93)](https://github.com/simonxluo/dsh-ssh-manager)
+
+🇬🇧 **English** · 🇨🇳 [简体中文](docs/README.zh.md) · 🇯🇵 [日本語](docs/README.ja.md) · 🇪🇸 [Español](docs/README.es.md)
+
+</div>
+
+---
+
+## Contents
+
+- [Features](#features)
+- [Install](#install)
+- [Quick start](#quick-start)
+- [Roadmap](#roadmap)
+- [Architecture](#architecture)
+- [Acknowledgments](#acknowledgments)
+- [License](#license)
 
 ---
 
 Manage SSH identity keys and per-host ssh config from the DSH plugin card — files land under `$DSH_HOME/.ssh`, so agents can `git clone git@host:repo` with zero manual setup.
 
-**Features**
+## Features
 
 - Card-driven: uses the built-in 0.2.x plugin-config form; saves hot-apply (volatile config), no restart
 - Isolated: everything lives in `$DSH_HOME/.ssh`; the only write to `~/.ssh` is one idempotent `Include` line
@@ -16,10 +39,11 @@ Manage SSH identity keys and per-host ssh config from the DSH plugin card — fi
 - **Password connections**: ip / user / password entries with an optional alias (defaults to the ip) and a workspace binding, managed in the Settings panel — the password is visible only while first typed and write-only afterwards (0600 local store, never returned by the API); connectivity is probed over TCP
 - **Apple-style settings page**: large title, stat tiles, and grouped inset lists with hairline separators; add/edit opens as a sheet (focus trap + Escape), delete confirms through an alert dialog — all colors ride on `--dsw-alias-*` theme tokens
 - **Machine info (ⓘ)**: every row has an info button that opens a sheet with a live SSH snapshot — CPU / memory / swap / disk meters (warn ≥ 60%, error ≥ 85%), load, uptime, OS, kernel, hostname, cores; key hosts collect over their managed alias, password connections through a secret-free `SSH_ASKPASS` shim (no `sshpass` needed), and the password never crosses argv or disk
+- **Embedded panel**: the manager also lives as a one-click main panel beside the conversation (sidebar terminal icon), sharing the same component as the Settings page
 - `autoInclude`: inserts one idempotent `Include` line before the first `Host` block of `~/.ssh/config` so plain `ssh`/`git` resolves managed hosts
 - Self-healing: idempotent reconcile, orphan cleanup on host removal, invalid entries skipped with warnings
 
-**Install**
+## Install
 
 ```bash
 dsh plugin --profile desktop add simonxluo/dsh-ssh-manager
@@ -27,7 +51,9 @@ dsh plugin --profile desktop add simonxluo/dsh-ssh-manager
 dsh plugin --profile desktop add /path/to/dsh-ssh-manager
 ```
 
-**Quick start** — Settings → Plugins → Plugin configuration → SSH Manager:
+## Quick start
+
+Settings → Plugins → Plugin configuration → SSH Manager:
 
 ```yaml
 hosts:
@@ -42,14 +68,15 @@ hosts:
 autoInclude: true
 ```
 
-**Roadmap**
+## Roadmap
 
-- One-click import from an existing `~/.ssh/config`
-- In-card key generation (`ed25519`), no paste needed
-- Per-host connectivity probe (`ssh -G` / handshake check)
-- `known_hosts` management via `ssh-keyscan`
-- Agent-facing health tool (`ssh_hosts_check`)
-- Optional custom UI card when the built-in form is not enough
+- [x] Per-host connectivity probe (probe button, TCP + SSH handshake)
+- [x] Custom UI (Apple-style settings page + embedded main panel)
+- [x] Live machine info per host (CPU / memory / disk over SSH)
+- [ ] One-click import from an existing `~/.ssh/config`
+- [ ] In-card key generation (`ed25519`), no paste needed
+- [ ] `known_hosts` management via `ssh-keyscan`
+- [ ] Agent-facing health tool (`ssh_hosts_check`)
 
 ---
 
