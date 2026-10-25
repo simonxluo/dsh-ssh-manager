@@ -1,0 +1,6 @@
+{
+	"meta": {
+		"title": "SSH マネージャー",
+		"description": "プラグイン設定カードで SSH 鍵とホスト別 ssh 設定を管理し、DSH ホーム（$DSH_HOME/.ssh）配下に展開します。agent の git-over-ssh がそのまま使えるようになります。"
+	}
+}

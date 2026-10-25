@@ -1,0 +1,6 @@
+{
+	"meta": {
+		"title": "Gestor SSH",
+		"description": "Gestiona claves de identidad SSH y la configuración ssh por host desde la tarjeta de configuración del plugin; las materializa bajo el directorio home de DSH ($DSH_HOME/.ssh) para que el git-over-ssh del agente funcione directamente."
+	}
+}
