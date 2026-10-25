@@ -740,6 +740,183 @@ function installPanelWeb(ctx, config) {
 	});
 }
 
+// ---------------------------------------------------------------------------
+// Agent tools: ssh_list / ssh_search.
+//
+// Read-only views over the same sources the panel serves — key hosts from the
+// live row config, password connections from the integrations store — plus the
+// cached probe results. No secret ever crosses this boundary: the tools report
+// `hasKey` / `hasPassword` booleans only, exactly like the panel API.
+// ---------------------------------------------------------------------------
+
+function block(text) {
+	return [{ type: 'text', text }];
+}
+
+/** One cached probe result as the tools expose it; undefined when never probed. */
+function probeView(result) {
+	if (result === undefined) return undefined;
+	const view = { ok: result.ok === true, latencyMs: result.latencyMs ?? 0, at: result.at ?? 0 };
+	if (result.error !== undefined && result.error !== null && String(result.error) !== '') view.error = String(result.error);
+	return view;
+}
+
+/** Every managed target with its cached probe: key hosts + password connections. */
+function managedTargets(config) {
+	// `probe` is omitted entirely when never probed: JSON cannot carry
+	// `undefined`, and the tool pipeline rejects non-lossless values.
+	const withProbe = (entry, result) => {
+		const probe = probeView(result);
+		if (probe !== undefined) entry.probe = probe;
+		return entry;
+	};
+	const hosts = hostSummaries(config.hosts ?? {}).map((summary) => withProbe({
+		kind: 'host',
+		alias: summary.alias,
+		url: summary.url,
+		user: summary.user,
+		hasKey: summary.hasKey,
+	}, probeResults.get(summary.alias)));
+	const connections = connectionSummaries(loadConnections()).map((summary) => withProbe({
+		kind: 'connection',
+		alias: summary.alias,
+		ip: summary.ip,
+		port: summary.port,
+		user: summary.user,
+		workspace: summary.workspace,
+		hasPassword: summary.hasPassword,
+	}, probeResults.get('conn:' + summary.alias)));
+	return { hosts, connections };
+}
+
+/** Searchable fields per entry kind, labeled for the `matched` report. */
+const SEARCH_FIELDS = {
+	host: (entry) => [['alias', entry.alias], ['url', entry.url], ['user', entry.user]],
+	connection: (entry) => [['alias', entry.alias], ['ip', entry.ip], ['user', entry.user], ['workspace', entry.workspace]],
+};
+
+/**
+ * Case-insensitive substring search over the labeled fields. Whitespace-
+ * separated keywords must all hit (each on any field); `matched` lists every
+ * field any keyword hit so the caller can see why an entry surfaced.
+ */
+function searchTargets(entries, query) {
+	const keywords = String(query ?? '').toLowerCase().split(/\s+/).filter(Boolean);
+	if (keywords.length === 0) return [];
+	const matches = [];
+	for (const entry of entries) {
+		const fields = SEARCH_FIELDS[entry.kind](entry)
+			.map(([label, value]) => [label, String(value ?? '').toLowerCase()]);
+		if (!keywords.every((keyword) => fields.some(([, text]) => text.includes(keyword)))) continue;
+		const matched = fields
+			.filter(([, text]) => keywords.some((keyword) => text.includes(keyword)))
+			.map(([label]) => label);
+		matches.push({ ...entry, matched });
+	}
+	return matches;
+}
+
+function probeText(probe) {
+	if (probe === undefined) return '未探测';
+	if (probe.ok) return `可连接（${probe.latencyMs}ms）`;
+	return `不可连接${probe.error ? '：' + probe.error : ''}`;
+}
+
+function ageText(at) {
+	if (!at) return '';
+	const minutes = Math.max(0, Math.round((Date.now() - at) / 60000));
+	return minutes < 1 ? '刚刚' : `${minutes} 分钟前`;
+}
+
+const FIELD_LABELS = { alias: '别名', url: '地址', user: '用户', ip: 'IP', workspace: '工作区' };
+
+function renderRoster(value) {
+	const hosts = value?.hosts ?? [];
+	const connections = value?.connections ?? [];
+	const lines = ['### SSH 密钥主机'];
+	if (hosts.length === 0) lines.push('（空——在 dsh-ssh-manager 插件配置卡片中添加）');
+	for (const host of hosts) {
+		const when = host.probe === undefined ? '' : `，${ageText(host.probe.at)}`;
+		lines.push(`- **${host.alias}** — ${host.user || '?'}@${host.url || '?'} · ${host.hasKey ? '托管密钥' : '无密钥'} · ${probeText(host.probe)}${when}`);
+	}
+	lines.push('', '### SSH 密码连接');
+	if (connections.length === 0) lines.push('（空——在 SSH 管理页添加）');
+	for (const conn of connections) {
+		const workspace = conn.workspace ? ` · 工作区 ${conn.workspace}` : '';
+		const when = conn.probe === undefined ? '' : `，${ageText(conn.probe.at)}`;
+		lines.push(`- **${conn.alias}** — ${conn.user || '?'}@${conn.ip || '?'}:${conn.port || 22}${workspace} · ${probeText(conn.probe)}${when}`);
+	}
+	if (hosts.length > 0) lines.push('', '密钥主机可直接 `ssh <别名>` 连接（ssh 配置已托管）。');
+	return lines.join('\n');
+}
+
+function renderSearch(value) {
+	const query = value?.query ?? '';
+	const matches = value?.matches ?? [];
+	if (matches.length === 0) return `### 模糊搜索「${query}」\n没有命中的主机。`;
+	const lines = [`### 模糊搜索「${query}」— 命中 ${matches.length} 台`];
+	for (const match of matches) {
+		const kind = match.kind === 'host' ? '密钥主机' : '密码连接';
+		const endpoint = match.kind === 'host'
+			? `${match.user || '?'}@${match.url || '?'}`
+			: `${match.user || '?'}@${match.ip || '?'}:${match.port || 22}`;
+		const matched = match.matched.map((label) => FIELD_LABELS[label] ?? label).join('、');
+		lines.push(`- **${match.alias}**（${kind}）— ${endpoint} · 匹配字段：${matched}`);
+	}
+	return lines.join('\n');
+}
+
+const OBJ_SCHEMA = { type: 'object', additionalProperties: true };
+
+/** The two read-only agent tools over the managed host roster. */
+function sshToolDefinitions(config) {
+	return [
+		{
+			name: 'ssh_list',
+			description:
+				'列出本 harness 的 SSH 管理器（dsh-ssh-manager）保存的全部主机：密钥主机（别名/地址/用户/是否托管密钥）' +
+				'与密码连接（别名/IP/端口/用户/workspace），每台附最近一次连通性探测缓存（字段缺失表示未探测过，结果可能已过期）。' +
+				'要连接某台服务器、或需要确认主机别名与地址时先调用本工具。',
+			parameters: { type: 'object', properties: {}, additionalProperties: false },
+			output: { schema: OBJ_SCHEMA, render: (_args, value) => block(renderRoster(value)) },
+			async execute() {
+				return managedTargets(config);
+			},
+		},
+		{
+			name: 'ssh_search',
+			description:
+				'按关键字模糊查找 SSH 管理器保存的主机：对密钥主机的别名/地址/用户、密码连接的别名/IP/用户/workspace 做' +
+				'不区分大小写的包含匹配，空格分隔多个关键字时要求全部命中；返回命中条目及各自匹配到的字段。' +
+				'用户提到某台服务器的名称、IP 或用户名时用它定位具体主机。',
+			parameters: {
+				type: 'object',
+				properties: {
+					query: { type: 'string', description: '关键字，不区分大小写；多个关键字用空格分隔，要求全部命中' },
+				},
+				required: ['query'],
+				additionalProperties: false,
+			},
+			output: { schema: OBJ_SCHEMA, render: (_args, value) => block(renderSearch(value)) },
+			async execute(rawArgs) {
+				const query = String(rawArgs?.query ?? '').trim();
+				if (query === '') throw new Error('query 不能为空');
+				const { hosts, connections } = managedTargets(config);
+				return { query, matches: searchTargets([...hosts, ...connections], query) };
+			},
+		},
+	];
+}
+
+/** Register the agent tools whenever a tools registry is present. */
+function installTools(ctx, config) {
+	ctx.inject(['tools'], (toolCtx) => {
+		for (const definition of sshToolDefinitions(config)) {
+			toolCtx.effect(() => toolCtx.tools.register(definition), 'dsh-ssh-manager: agent tools');
+		}
+	});
+}
+
 /** The SSH directory this plugin owns: `$DSH_HOME/.ssh`, else `~/.dsh/.ssh`. */
 export function sshDirOf() {
 	const home = process.env.DSH_HOME ?? join(homedir(), '.dsh');
@@ -1064,6 +1241,7 @@ export function apply(ctx, rowConfig) {
 	};
 	sync('activation');
 	installPanelWeb(ctx, config);
+	installTools(ctx, config);
 	ctx.effect(() => {
 		const timer = setInterval(() => sync('config change'), 3000);
 		return () => clearInterval(timer);

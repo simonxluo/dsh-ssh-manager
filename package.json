@@ -1,7 +1,7 @@
 {
   "name": "dsh-ssh-manager",
-  "version": "1.1.1",
-  "description": "Manage SSH identity keys and per-host ssh config from the plugin configuration card; materializes them under the DSH home so git-over-ssh works. Native DeepSeek Harness 0.2.x rewrite.",
+  "version": "1.2.0",
+  "description": "Manage SSH identity keys and per-host ssh config from the plugin configuration card; materializes them under the DSH home so git-over-ssh works. Ships read-only ssh_list / ssh_search agent tools. Native DeepSeek Harness 0.2.x rewrite.",
   "type": "module",
   "license": "MIT",
   "author": "simonxluo",
