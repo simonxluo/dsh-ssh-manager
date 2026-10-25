@@ -1,7 +1,16 @@
-// dsh-ssh-manager — Client half: the「开发机管理」settings section.
-// Source of truth for the list is the Host plugin's row config (surfaced as
-// metadata only); connectivity comes from POST {action:'probe'} on the panel
-// route. React comes from the browser module table.
+// dsh-ssh-manager — Client half: the「SSH 管理」settings section.
+//
+// Apple-aesthetic redesign of the management page:
+//   - iOS/macOS large title + toolbar, grouped inset lists with hairline
+//     separators, tinted controls, stat tiles.
+//   - Add/Edit runs in a sheet (in-page sub-window): scrim with backdrop
+//     blur, focus trap, Escape to close, autofocus first field.
+//   - Delete confirms through an alert dialog (replaces window.confirm).
+// Theming rides exclusively on --dsw-alias-* tokens; semantic status colors
+// come from state-* tokens via color-mix. Source of truth for the list is
+// the Host plugin's row config (surfaced as metadata only); connectivity
+// comes from POST {action:'probe'} on the panel route. React comes from the
+// browser module table.
 window.__ModuleLoader__.load({ id: "dsh-ssh-manager", factory: (require) => {
 var module = { exports: {} }; var exports = module.exports;
 "use strict";
@@ -18,22 +27,19 @@ const en = {
 	"nav.title": "SSH Manager",
 	"title": "Dev machines (SSH)",
 	"subtitle": "Hosts saved in this harness and their connectivity.",
-	"col.alias": "Alias",
-	"col.url": "Address",
-	"col.user": "User",
-	"col.key": "Key",
-	"col.status": "Status",
-	"key.yes": "managed",
-	"key.no": "—",
+	"sec.keyhosts": "Key hosts",
+	"sec.conns": "Password connections",
+	"stat.hosts": "key hosts",
+	"stat.conns": "password connections",
+	"stat.reachable": "reachable",
 	"status.unknown": "Not probed",
 	"status.probing": "Probing…",
 	"status.ok": "Reachable",
 	"status.fail": "Unreachable",
 	"action.probeAll": "Probe all",
 	"action.refresh": "Refresh",
+	"action.probeOne": "Probe",
 	"empty": "No hosts configured yet — add one in the plugin configuration card.",
-		"conn.title": "Password connections",
-	"conn.subtitle": "ip / user / password entries with an optional alias and a workspace binding; probed over TCP.",
 	"conn.add": "Add connection",
 	"conn.edit": "Edit",
 	"conn.del": "Delete",
@@ -47,40 +53,38 @@ const en = {
 	"conn.password": "Password",
 	"conn.alias.ph": "optional — defaults to the IP",
 	"conn.password.keep": "leave blank to keep the stored password",
-	"conn.confirmDelete": "Delete connection",
 	"conn.empty": "No password connections yet.",
-	"conn.tcp": "TCP probe",
-	"action.probeOne": "Probe",
-	"error.load": "Failed to load hosts: ",
-	"stat.hosts": "key hosts",
-	"stat.conns": "password connections",
-	"stat.reachable": "reachable",
-	"error.probe": "Probe failed: ",
-	"key.has": "Has managed key",
-	"key.none": "No managed key",
+	"conn.tcp": "TCP",
+	"key.yes": "managed key",
+	"key.no": "no key",
 	"ms": "ms",
+	"sheet.add": "New connection",
+	"sheet.edit": "Edit connection",
+	"sheet.sub": "Password-authenticated entry; connectivity is probed over TCP.",
+	"alert.deleteTitle": "Delete “%s”?",
+	"alert.deleteMsg": "The stored password and workspace binding will be removed. This action cannot be undone.",
+	"alert.delete": "Delete",
+	"error.load": "Failed to load hosts: ",
+	"error.probe": "Request failed: ",
 };
 
 const zh = {
 	"nav.title": "SSH 管理",
 	"title": "开发机管理",
 	"subtitle": "当前 harness 中保存的 SSH 主机及其连通状态。",
-	"col.alias": "别名",
-	"col.url": "地址",
-	"col.user": "用户",
-	"col.key": "密钥",
-	"col.status": "状态",
-	"key.yes": "已托管",
-	"key.no": "—",
+	"sec.keyhosts": "密钥主机",
+	"sec.conns": "密码连接",
+	"stat.hosts": "密钥主机",
+	"stat.conns": "密码连接",
+	"stat.reachable": "可连接",
 	"status.unknown": "未探测",
 	"status.probing": "探测中…",
 	"status.ok": "可连接",
 	"status.fail": "不可连接",
 	"action.probeAll": "全部探测",
 	"action.refresh": "刷新",
+	"action.probeOne": "探测",
 	"empty": "尚未配置主机——在插件配置卡片中添加。",
-		"conn.title": "密码连接",
-	"conn.subtitle": "以 ip / 用户 / 密码创建的连接，可选别名与工作区绑定；以 TCP 探测连通性。",
 	"conn.add": "添加连接",
 	"conn.edit": "编辑",
 	"conn.del": "删除",
@@ -94,40 +98,38 @@ const zh = {
 	"conn.password": "密码",
 	"conn.alias.ph": "可选，缺省使用 IP",
 	"conn.password.keep": "留空保持原密码",
-	"conn.confirmDelete": "确认删除连接",
 	"conn.empty": "还没有密码连接。",
-	"conn.tcp": "TCP 探测",
-	"action.probeOne": "探测",
-	"error.load": "加载主机失败：",
-	"stat.hosts": "密钥主机",
-	"stat.conns": "密码连接",
-	"stat.reachable": "可连接",
-	"error.probe": "探测失败：",
-	"key.has": "含托管密钥",
-	"key.none": "无托管密钥",
+	"conn.tcp": "TCP",
+	"key.yes": "已托管密钥",
+	"key.no": "无密钥",
 	"ms": "毫秒",
+	"sheet.add": "新增连接",
+	"sheet.edit": "编辑连接",
+	"sheet.sub": "以密码认证的连接条目；连通性经 TCP 探测。",
+	"alert.deleteTitle": "删除“%s”？",
+	"alert.deleteMsg": "将移除已保存的密码与工作区绑定，此操作不可撤销。",
+	"alert.delete": "删除",
+	"error.load": "加载主机失败：",
+	"error.probe": "请求失败：",
 };
 
 const ja = {
 	"nav.title": "SSH 管理",
 	"title": "開発機管理",
 	"subtitle": "この harness に保存された SSH ホストとその接続状態。",
-	"col.alias": "エイリアス",
-	"col.url": "アドレス",
-	"col.user": "ユーザー",
-	"col.key": "鍵",
-	"col.status": "状態",
-	"key.yes": "管理対象",
-	"key.no": "—",
+	"sec.keyhosts": "鍵ホスト",
+	"sec.conns": "パスワード接続",
+	"stat.hosts": "鍵ホスト",
+	"stat.conns": "パスワード接続",
+	"stat.reachable": "接続可能",
 	"status.unknown": "未実行",
 	"status.probing": "確認中…",
 	"status.ok": "接続可能",
 	"status.fail": "接続不可",
 	"action.probeAll": "すべて確認",
 	"action.refresh": "更新",
+	"action.probeOne": "確認",
 	"empty": "ホストが未設定です — プラグイン設定カードで追加してください。",
-		"conn.title": "パスワード接続",
-	"conn.subtitle": "ip / ユーザー / パスワードで作成する接続。任意のエイリアスとワークスペース連携付き、TCP で到達性を確認。",
 	"conn.add": "接続を追加",
 	"conn.edit": "編集",
 	"conn.del": "削除",
@@ -141,40 +143,38 @@ const ja = {
 	"conn.password": "パスワード",
 	"conn.alias.ph": "任意 — 未入力なら IP を使用",
 	"conn.password.keep": "空欄で既存のパスワードを保持",
-	"conn.confirmDelete": "接続を削除",
 	"conn.empty": "パスワード接続はまだありません。",
-	"conn.tcp": "TCP 確認",
-	"action.probeOne": "確認",
-	"error.load": "ホストの読み込みに失敗：",
-	"stat.hosts": "鍵ホスト",
-	"stat.conns": "パスワード接続",
-	"stat.reachable": "接続可能",
-	"error.probe": "確認に失敗：",
-	"key.has": "管理鍵あり",
-	"key.none": "管理鍵なし",
+	"conn.tcp": "TCP",
+	"key.yes": "管理鍵あり",
+	"key.no": "鍵なし",
 	"ms": "ミリ秒",
+	"sheet.add": "新規接続",
+	"sheet.edit": "接続を編集",
+	"sheet.sub": "パスワード認証の接続エントリ。TCP で到達性を確認します。",
+	"alert.deleteTitle": "「%s」を削除しますか？",
+	"alert.deleteMsg": "保存されたパスワードとワークスペース連携が削除されます。この操作は元に戻せません。",
+	"alert.delete": "削除",
+	"error.load": "ホストの読み込みに失敗：",
+	"error.probe": "リクエストに失敗：",
 };
 
 const es = {
 	"nav.title": "Gestión SSH",
 	"title": "Gestión de máquinas de desarrollo",
 	"subtitle": "Hosts SSH guardados en este harness y su conectividad.",
-	"col.alias": "Alias",
-	"col.url": "Dirección",
-	"col.user": "Usuario",
-	"col.key": "Clave",
-	"col.status": "Estado",
-	"key.yes": "gestionada",
-	"key.no": "—",
+	"sec.keyhosts": "Hosts con clave",
+	"sec.conns": "Conexiones con contraseña",
+	"stat.hosts": "hosts con clave",
+	"stat.conns": "conexiones con contraseña",
+	"stat.reachable": "accesibles",
 	"status.unknown": "Sin comprobar",
 	"status.probing": "Comprobando…",
 	"status.ok": "Accesible",
 	"status.fail": "Inaccesible",
 	"action.probeAll": "Comprobar todo",
 	"action.refresh": "Actualizar",
+	"action.probeOne": "Comprobar",
 	"empty": "Aún no hay hosts configurados — añade uno en la tarjeta de configuración del plugin.",
-		"conn.title": "Conexiones con contraseña",
-	"conn.subtitle": "Entradas ip / usuario / contraseña con alias opcional y espacio de trabajo; comprobadas por TCP.",
 	"conn.add": "Añadir conexión",
 	"conn.edit": "Editar",
 	"conn.del": "Eliminar",
@@ -188,18 +188,19 @@ const es = {
 	"conn.password": "Contraseña",
 	"conn.alias.ph": "opcional — por defecto la IP",
 	"conn.password.keep": "déjalo vacío para mantener la contraseña",
-	"conn.confirmDelete": "Eliminar conexión",
 	"conn.empty": "Aún no hay conexiones con contraseña.",
-	"conn.tcp": "comprobación TCP",
-	"action.probeOne": "Comprobar",
-	"error.load": "Error al cargar hosts: ",
-	"stat.hosts": "hosts con clave",
-	"stat.conns": "conexiones con contraseña",
-	"stat.reachable": "accesibles",
-	"error.probe": "Error al comprobar: ",
-	"key.has": "Con clave gestionada",
-	"key.none": "Sin clave gestionada",
+	"conn.tcp": "TCP",
+	"key.yes": "con clave gestionada",
+	"key.no": "sin clave",
 	"ms": "ms",
+	"sheet.add": "Nueva conexión",
+	"sheet.edit": "Editar conexión",
+	"sheet.sub": "Entrada autenticada por contraseña; conectividad comprobada por TCP.",
+	"alert.deleteTitle": "¿Eliminar «%s»?",
+	"alert.deleteMsg": "Se eliminarán la contraseña guardada y el espacio de trabajo asociado. Esta acción no se puede deshacer.",
+	"alert.delete": "Eliminar",
+	"error.load": "Error al cargar hosts: ",
+	"error.probe": "Error en la solicitud: ",
 };
 
 // ---- i18n: follow the harness locale service (pattern from dsh-email) ----
@@ -292,55 +293,140 @@ async function api(action, payload) {
 	return body.value;
 }
 
-/** 设计系统样式：状态化按钮 / 药丸芯片 / 椭圆卡片矩阵（一次注入，类名 dshm-*）。 */
-const STYLE_CSS = "@keyframes dsh-ssh-pulse{0%,100%{opacity:1}50%{opacity:.25}}@keyframes dsh-ssh-spin{to{transform:rotate(360deg)}}"
-	+ ".dshm-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 16px;font-size:13px;border-radius:999px;cursor:pointer;border:1px solid rgba(127,127,127,.35);background:transparent;color:inherit;transition:background .15s,border-color .15s,color .15s,transform .05s,opacity .15s;user-select:none;white-space:nowrap}"
-	+ ".dshm-btn:hover:not(:disabled){background:rgba(127,127,127,.12);border-color:rgba(127,127,127,.55)}"
-	+ ".dshm-btn:active:not(:disabled){transform:scale(.96)}"
-	+ ".dshm-btn:focus-visible{outline:2px solid rgba(59,130,246,.6);outline-offset:1px}"
-	+ ".dshm-btn:disabled{opacity:.45;cursor:not-allowed}"
-	+ ".dshm-btn--sm{padding:3px 12px;font-size:12px}"
-	+ ".dshm-btn--primary{background:#3b82f6;border-color:#3b82f6;color:#fff}"
-	+ ".dshm-btn--primary:hover:not(:disabled){background:#2563eb;border-color:#2563eb}"
-	+ ".dshm-btn--danger{color:#dc2626;border-color:rgba(220,38,38,.4)}"
-	+ ".dshm-btn--danger:hover:not(:disabled){background:rgba(239,68,68,.12);border-color:#dc2626}"
-	+ ".dshm-btn.is-done{border-color:#22c55e;color:#16a34a;background:rgba(34,197,94,.1)}"
-	+ ".dshm-spin{width:11px;height:11px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:dsh-ssh-spin .7s linear infinite;flex:0 0 auto}"
-	+ ".dshm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(310px,100%),1fr));gap:12px}"
-	+ ".dshm-card{border:1px solid rgba(127,127,127,.22);border-radius:26px;padding:13px 17px 12px;display:flex;flex-direction:column;gap:9px;background:rgba(127,127,127,.045);transition:border-color .15s,background .15s,box-shadow .15s;min-width:0}"
-	+ ".dshm-card:hover{border-color:rgba(127,127,127,.5);background:rgba(127,127,127,.08);box-shadow:0 1px 6px rgba(0,0,0,.05)}"
-	+ ".dshm-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}"
-	+ ".dshm-card-title{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
-	+ ".dshm-kv{display:flex;align-items:center;gap:7px;font-size:12.5px;min-width:0;flex-wrap:wrap;margin:0}"
-	+ ".dshm-kv dt{opacity:.5;flex:0 0 auto;font-size:12px}"
-	+ ".dshm-kv dd{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}"
-	+ ".dshm-chip{display:inline-flex;align-items:center;gap:4px;padding:1px 10px;font-size:11.5px;border-radius:999px;border:1px solid transparent;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}"
-	+ ".dshm-chip--ok{background:rgba(34,197,94,.12);color:#16a34a}"
-	+ ".dshm-chip--warn{background:rgba(245,158,11,.14);color:#b45309}"
-	+ ".dshm-chip--dim{background:rgba(127,127,127,.12);color:inherit;opacity:.85}"
-	+ ".dshm-statbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}"
-	+ ".dshm-pill{display:inline-flex;align-items:center;gap:6px;padding:2px 12px;border-radius:999px;font-size:12px;white-space:nowrap}"
-	+ ".dshm-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}"
-	+ ".dshm-form{display:flex;flex-direction:column;gap:9px;padding:14px 17px;border-radius:26px;border:1px solid rgba(127,127,127,.25);background:rgba(127,127,127,.04)}"
-	+ ".dshm-fieldrow{display:flex;flex-wrap:wrap;gap:9px}"
-	+ ".dshm-field{display:flex;align-items:center;gap:8px;flex:1 1 230px;min-width:0}"
-	+ ".dshm-field>span{flex:0 0 84px;font-size:12.5px;opacity:.65}"
-	+ ".dshm-input{flex:1 1 auto;min-width:0;width:100%;box-sizing:border-box;padding:6px 14px;font-size:13px;border-radius:999px;border:1px solid rgba(127,127,127,.35);background:transparent;color:inherit;transition:border-color .15s,background .15s}"
-	+ ".dshm-input:focus{outline:none;border-color:#3b82f6;background:rgba(59,130,246,.06)}"
-	+ ".dshm-input:disabled{opacity:.55}"
-	+ ".dshm-empty{border:1.5px dashed rgba(127,127,127,.35);border-radius:999px;padding:14px 22px;font-size:13px;opacity:.65;text-align:center}"
-	+ ".dshm-actions{display:flex;flex-wrap:wrap;gap:7px;align-items:center}"
-	+ ".dshm-sub{font-size:12.5px;opacity:.6}";
+/**
+ * Apple 风格设计系统（类名 dshm-*，一次注入）。
+ * 颜色一律走 --dsw-alias-* 主题 token（color-mix 派生 tint）；动画曲线
+ * 取 macOS sheet 的 cubic-bezier(.32,.72,0,1)，并尊重 prefers-reduced-motion。
+ */
+const STYLE_CSS = `
+@keyframes dsh-ssh-pulse{0%,100%{opacity:1}50%{opacity:.25}}
+@keyframes dsh-ssh-spin{to{transform:rotate(360deg)}}
+@keyframes dsh-ssh-fade{from{opacity:0}}
+@keyframes dsh-ssh-sheet-in{from{opacity:0;transform:scale(1.05) translateY(8px)}}
+.dstm-root{display:flex;flex-direction:column;gap:18px;font-variant-numeric:tabular-nums}
+.dstm-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.dstm-title{font-size:22px;font-weight:700;letter-spacing:-.021em;line-height:1.2}
+.dstm-subtitle{font-size:12.5px;color:var(--dsw-alias-label-tertiary);margin-top:3px;line-height:1.45}
+.dstm-toolbar{display:flex;align-items:center;gap:8px}
+.dstm-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:5px 13px;font-size:12.5px;font-weight:600;border-radius:8px;cursor:pointer;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-primary);transition:background .16s,color .16s,border-color .16s,transform .08s,opacity .16s;user-select:none;white-space:nowrap;line-height:1.4}
+.dstm-btn:active:not(:disabled){transform:scale(.97);opacity:.8}
+.dstm-btn:disabled{opacity:.4;cursor:default}
+.dstm-btn:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--dsw-alias-state-business-primary) 32%,transparent)}
+.dstm-btn--sm{padding:3px 10px;font-size:12px;border-radius:7px}
+.dstm-btn--icon{padding:4px 7px}
+.dstm-btn--plain:hover:not(:disabled){background:rgba(120,120,128,.12);background:color-mix(in srgb,var(--dsw-alias-label-primary) 9%,transparent)}
+.dstm-btn--tinted{background:rgba(120,120,128,.14);background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 13%,transparent);color:var(--dsw-alias-state-business-primary)}
+.dstm-btn--tinted:hover:not(:disabled){background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 20%,transparent)}
+.dstm-btn--filled{background:var(--dsw-alias-button-primary-fill);color:var(--dsw-alias-label-primary-foreground,#fff)}
+.dstm-btn--filled:hover:not(:disabled){background:var(--dsw-alias-button-primary-hover)}
+.dstm-btn--danger{background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 13%,transparent);color:var(--dsw-alias-state-error-primary)}
+.dstm-btn--danger:hover:not(:disabled){background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 20%,transparent)}
+.dstm-btn--destructive{background:var(--dsw-alias-state-error-primary);color:#fff}
+.dstm-btn--destructive:hover:not(:disabled){background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 85%,#000)}
+.dstm-btn.is-done{color:var(--dsw-alias-state-success-primary)}
+.dstm-btn--wide{min-width:76px}
+.dstm-spin{width:11px;height:11px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:dsh-ssh-spin .7s linear infinite;flex:0 0 auto}
+.dstm-ico{flex:0 0 auto;display:block}
+.dstm-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.dstm-stat{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);border-radius:12px;padding:10px 14px 11px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.dstm-stat-num{font-size:19px;font-weight:600;letter-spacing:-.01em;line-height:1.15;display:flex;align-items:center;gap:6px}
+.dstm-stat-label{font-size:11.5px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dstm-sec{display:flex;flex-direction:column;gap:8px}
+.dstm-sec-head{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:26px}
+.dstm-sec-title{font-size:12px;font-weight:600;color:var(--dsw-alias-label-tertiary);text-transform:uppercase;letter-spacing:.05em}
+.dstm-group{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);border-radius:12px;overflow:hidden}
+.dstm-row{position:relative;display:flex;align-items:center;gap:12px;padding:9px 14px;min-height:52px}
+.dstm-row + .dstm-row::before{content:"";position:absolute;top:0;left:42px;right:0;height:1px;background:var(--dsw-alias-border-l2)}
+.dstm-row:hover{background:rgba(120,120,128,.05);background:color-mix(in srgb,var(--dsw-alias-label-primary) 4%,transparent)}
+.dstm-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.dstm-dot--ok{background:var(--dsw-alias-state-success-primary)}
+.dstm-dot--warn{background:var(--dsw-alias-state-warn-primary)}
+.dstm-dot--fail{background:var(--dsw-alias-state-error-primary)}
+.dstm-dot--unknown{background:color-mix(in srgb,var(--dsw-alias-label-primary) 30%,transparent)}
+.dstm-dot--probing{background:var(--dsw-alias-state-business-primary);animation:dsh-ssh-pulse 1.1s ease-in-out infinite}
+.dstm-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1.5px}
+.dstm-name{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dstm-detail{font-size:12px;color:var(--dsw-alias-label-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:6px;min-width:0}
+.dstm-sep{opacity:.45;flex:0 0 auto}
+.dstm-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px}
+.dstm-side{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.dstm-status{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--dsw-alias-label-tertiary);white-space:nowrap}
+.dstm-status--ok{color:var(--dsw-alias-state-success-primary)}
+.dstm-status--fail{color:var(--dsw-alias-state-error-primary)}
+.dstm-chip{display:inline-flex;align-items:center;padding:1.5px 9px;font-size:11px;font-weight:500;border-radius:999px;border:1px solid transparent;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis}
+.dstm-chip--ok{background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 13%,transparent);color:var(--dsw-alias-state-success-primary)}
+.dstm-chip--warn{background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 15%,transparent);color:var(--dsw-alias-state-warn-primary)}
+.dstm-chip--dim{background:color-mix(in srgb,var(--dsw-alias-label-primary) 8%,transparent);color:var(--dsw-alias-label-tertiary)}
+.dstm-empty{padding:26px 18px;display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--dsw-alias-label-tertiary);font-size:12.5px;text-align:center}
+.dstm-empty .dshm-ico{opacity:.45}
+.dstm-error{display:flex;gap:9px;align-items:flex-start;padding:10px 13px;border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 10%,transparent);color:var(--dsw-alias-state-error-primary);font-size:12.5px;line-height:1.5;border:1px solid color-mix(in srgb,var(--dsw-alias-state-error-primary) 22%,transparent)}
+.dstm-error .dshm-ico{margin-top:1px}
+.dstm-scrim{position:fixed;inset:0;z-index:2147483000;background:var(--dsw-alias-bg-mask-3,rgba(0,0,0,.32));backdrop-filter:blur(16px) saturate(170%);-webkit-backdrop-filter:blur(16px) saturate(170%);display:flex;align-items:center;justify-content:center;padding:22px;animation:dsh-ssh-fade .2s ease}
+.dstm-sheet{width:min(440px,100%);max-height:min(86vh,640px);overflow:auto;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);border-radius:14px;box-shadow:var(--dsw-elevation-prominent,0 20px 60px rgba(0,0,0,.35));animation:dsh-ssh-sheet-in .3s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column}
+.dstm-sheet--small{width:min(330px,100%)}
+.dstm-sheet-head{padding:18px 20px 4px;display:flex;flex-direction:column;gap:3px}
+.dstm-sheet-title{font-size:15.5px;font-weight:700;letter-spacing:-.012em}
+.dstm-sheet-sub{font-size:12px;color:var(--dsw-alias-label-tertiary);line-height:1.5}
+.dstm-sheet-body{padding:14px 20px 16px;display:flex;flex-direction:column;gap:13px}
+.dstm-sheet-foot{display:flex;justify-content:flex-end;gap:8px;padding:11px 14px;border-top:1px solid var(--dsw-alias-border-l2)}
+.dstm-field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.dstm-field-label{font-size:11.5px;font-weight:600;color:var(--dsw-alias-label-tertiary);letter-spacing:.01em}
+.dstm-field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.dstm-input{width:100%;box-sizing:border-box;padding:6px 11px;font-size:12.5px;border-radius:8px;border:1px solid transparent;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);transition:border-color .16s,box-shadow .16s;font-family:inherit}
+.dstm-input::placeholder{color:var(--dsw-alias-label-tertiary);opacity:.7}
+.dstm-input:focus{outline:none;border-color:var(--dsw-alias-state-business-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--dsw-alias-state-business-primary) 25%,transparent)}
+.dstm-input:disabled{opacity:.5}
+.dstm-alert-ico{width:40px;height:40px;border-radius:50%;background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 13%,transparent);color:var(--dsw-alias-state-error-primary);display:flex;align-items:center;justify-content:center;margin:18px auto 11px}
+.dstm-alert-title{font-size:13.5px;font-weight:700;padding:0 18px;letter-spacing:-.01em;text-align:center}
+.dstm-alert-msg{font-size:12px;color:var(--dsw-alias-label-tertiary);line-height:1.55;padding:6px 20px 0;max-width:280px;margin:0 auto;text-align:center}
+.dstm-alert-foot{display:flex;justify-content:center;gap:10px;padding:16px 16px 18px;width:100%;box-sizing:border-box}
+@media (prefers-reduced-motion:reduce){.dshm-root *{animation:none!important;transition:none!important}}
+`;
 
-/** 状态化按钮：变体 ghost | primary | danger；状态 hover/active/disabled/busy(旋转)/done(绿闪)。 */
+/** SF-Symbols 风格的极简线性图标（currentColor 描边，视为 artwork）。 */
+function Ico(props) {
+	const size = props.size || 13;
+	const common = {
+		width: size, height: size, viewBox: "0 0 16 16", fill: "none",
+		stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round",
+		strokeLinejoin: "round", className: "dshm-ico", "aria-hidden": "true",
+	};
+	switch (props.name) {
+		case "refresh": return h("svg", common,
+			h("path", { d: "M13.2 8a5.2 5.2 0 1 1-1.53-3.67" }),
+			h("path", { d: "M13.3 2v2.7h-2.7" }));
+		case "probe": return h("svg", common,
+			h("circle", { cx: 4.5, cy: 11.5, r: 1.1, fill: "currentColor", stroke: "none" }),
+			h("path", { d: "M6.7 9.3a3.1 3.1 0 0 1 0 4.4" }),
+			h("path", { d: "M8.9 6.9a6.1 6.1 0 0 1 0 9" }));
+		case "plus": return h("svg", common, h("path", { d: "M8 3.2v9.6M3.2 8h9.6" }));
+		case "pencil": return h("svg", common, h("path", { d: "M3 13l.9-3.1L11.4 2.4a1.55 1.55 0 0 1 2.2 2.2L6.1 12.1 3 13z" }));
+		case "trash": return h("svg", common,
+			h("path", { d: "M3 4.6h10" }),
+			h("path", { d: "M6.4 4.6V3.2a.9.9 0 0 1 .9-.9h1.4a.9.9 0 0 1 .9.9v1.4" }),
+			h("path", { d: "M4.6 4.6l.6 8a1.1 1.1 0 0 0 1.1 1h3.4a1.1 1.1 0 0 0 1.1-1l.6-8" }));
+		case "check": return h("svg", common, h("path", { d: "M3.5 8.6l3 3 6-7.2" }));
+		case "warn": return h("svg", common,
+			h("path", { d: "M8 2.6L14.4 13.4H1.6z" }),
+			h("path", { d: "M8 6.6v3" }),
+			h("path", { d: "M8 11.7v.01" }));
+		case "tray": return h("svg", common,
+			h("path", { d: "M2.6 8.6h2.9l1.1 1.8h2.8l1.1-1.8h2.9" }),
+			h("path", { d: "M3.4 8.6l1.1-4a1 1 0 0 1 1-.7h5a1 1 0 0 1 1 .7l1.1 4v3a1 1 0 0 1-1 1H4.4a1 1 0 0 1-1-1v-3z" }));
+		default: return null;
+	}
+}
+
+/** 状态化按钮：plain | tinted | filled | danger | destructive；busy 旋转、done 绿闪。 */
 function Btn(props) {
 	const [done, setDone] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const disabled = props.disabled === true || busy;
-	const variant = props.variant || "ghost";
-	let className = "dshm-btn" + (props.size === "sm" ? " dshm-btn--sm" : "");
-	if (variant === "primary") className += " dshm-btn--primary";
-	if (variant === "danger") className += " dshm-btn--danger";
+	const variant = props.variant || "plain";
+	let className = "dshm-btn dshm-btn--" + variant;
+	if (props.size === "sm") className += " dshm-btn--sm";
+	if (props.iconOnly === true) className += " dshm-btn--icon";
+	if (props.wide === true) className += " dshm-btn--wide";
 	if (busy) className += " is-busy";
 	if (done) className += " is-done";
 	const onClick = async () => {
@@ -357,10 +443,11 @@ function Btn(props) {
 			setTimeout(() => setDone(false), 1100);
 		}
 	};
-	return h("button", { className: className, onClick: onClick, disabled: disabled, title: props.title || "" },
+	const label = props.ariaLabel || props.title || undefined;
+	return h("button", { className: className, onClick: onClick, disabled: disabled, title: props.title || "", "aria-label": label },
 		busy ? h("span", { className: "dshm-spin" }) : null,
-		done ? "✓" : null,
-		props.children);
+		busy ? null : (props.icon || null),
+		props.children === undefined ? null : props.children);
 }
 
 /** 药丸芯片：tone = ok | warn | dim。 */
@@ -368,35 +455,94 @@ function Chip(props) {
 	return h("span", { className: "dshm-chip dshm-chip--" + (props.tone || "dim"), title: props.title || "" }, props.children);
 }
 
-/** 状态徽标（药丸形）：unknown | probing | ok(含延迟) | fail(错误入 title)。 */
-function StatusPill(props) {
-	if (props.kind === "probing") {
-		return h("span", { className: "dshm-pill", style: { opacity: 0.7 } },
-			h("span", { className: "dshm-dot", style: { background: "#3b82f6", animation: "dsh-ssh-pulse 1s infinite" } }),
-			props.t("status.probing"));
-	}
-	if (props.kind === "ok") {
-		return h("span", { className: "dshm-pill", style: { background: "rgba(34,197,94,.12)", color: "#16a34a" } },
-			h("span", { className: "dshm-dot", style: { background: "#22c55e" } }),
-			props.t("status.ok"),
-			typeof props.latencyMs === "number" ? h("span", { style: { opacity: 0.65 } }, props.latencyMs + " " + props.t("ms")) : null,
-			props.tcp ? h("span", { style: { opacity: 0.6 } }, "· " + props.t("conn.tcp")) : null);
-	}
-	if (props.kind === "fail") {
-		return h("span", { className: "dshm-pill", style: { background: "rgba(239,68,68,.1)", color: "#dc2626" }, title: props.error || "" },
-			h("span", { className: "dshm-dot", style: { background: "#ef4444" } }),
-			props.t("status.fail"));
-	}
-	return h("span", { className: "dshm-pill", style: { background: "rgba(120,120,120,.12)", color: "inherit", opacity: 0.75 } },
-		h("span", { style: { width: "8px", height: "8px", borderRadius: "50%", background: "currentColor", opacity: 0.5, flex: "0 0 auto" } }),
-		props.t("status.unknown"));
+/** 状态点：ok | warn | fail | probing | unknown。 */
+function Dot(props) {
+	return h("span", { className: "dshm-dot dshm-dot--" + (props.kind || "unknown"), "aria-hidden": "true" });
 }
 
-/** 标签-值数据行（省略号截断，悬停可见全文）。 */
-function Kv(props) {
-	return h("dl", { className: "dshm-kv" },
-		h("dt", null, props.label),
-		h("dd", { title: props.title || String(props.value || "") }, props.value === undefined || props.value === "" ? "—" : props.value));
+/** 状态文字（含延迟与 TCP 标记；失败原因进 title）。 */
+function StatusText(props) {
+	const s = props.s;
+	const kind = s.kind;
+	const cls = "dshm-status" + (kind === "ok" ? " dshm-status--ok" : kind === "fail" ? " dshm-status--fail" : "");
+	const title = kind === "fail" ? (s.error || props.t("status.fail")) : "";
+	const bits = [props.t("status." + (kind === "unknown" ? "unknown" : kind))];
+	if (kind === "ok" && typeof s.latencyMs === "number") bits.push(s.latencyMs + " " + props.t("ms"));
+	if (kind === "ok" && props.tcp === true) bits.push(props.t("conn.tcp"));
+	return h("span", { className: cls, title: title }, bits.join(" · "));
+}
+
+/** 统计小卡：数值 + 标签，可选 ok/warn 色点。 */
+function Stat(props) {
+	return h("div", { className: "dshm-stat" },
+		h("span", { className: "dshm-stat-num" },
+			props.tone === "ok" ? h(Dot, { kind: "ok" }) : null,
+			props.tone === "warn" ? h(Dot, { kind: "warn" }) : null,
+			props.value),
+		h("span", { className: "dshm-stat-label" }, props.label));
+}
+
+/** 空状态：图标 + 文案。 */
+function EmptyCard(props) {
+	return h("div", { className: "dshm-empty" },
+		h(Ico, { name: props.icon || "tray", size: 22 }),
+		h("span", null, props.text));
+}
+
+/**
+ * 页内子窗口（sheet/alert）：scrim 磨砂背景 + 面板缩放入场。
+ * Escape 关闭、Tab 焦点圈定、自动聚焦首个输入，符合 practices.md 的
+ * Modal 焦点/Escape 约定；alert 模式不响应点击蒙层关闭。
+ */
+function Sheet(props) {
+	const panelRef = useRef(null);
+	useEffect(() => {
+		const panel = panelRef.current;
+		if (!panel) return;
+		const raf = requestAnimationFrame(() => {
+			const selector = props.alert === true ? "button" : "input, select, textarea";
+			const target = panel.querySelector(selector);
+			if (target) {
+				try { target.focus({ preventScroll: true }); } catch { /* focus is best-effort */ }
+			}
+		});
+		return () => cancelAnimationFrame(raf);
+		// 挂载时聚焦一次即可；props.alert 在挂载周期内不变。
+	}, []);
+	const onKeyDown = (e) => {
+		if (e.key === "Escape") {
+			e.stopPropagation();
+			if (props.onClose) props.onClose();
+			return;
+		}
+		if (e.key !== "Tab") return;
+		const panel = panelRef.current;
+		if (!panel) return;
+		const nodes = Array.from(panel.querySelectorAll(
+			'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'));
+		if (nodes.length === 0) return;
+		const first = nodes[0];
+		const last = nodes[nodes.length - 1];
+		const active = document.activeElement;
+		if (e.shiftKey && (active === first || active === panel)) {
+			e.preventDefault();
+			last.focus();
+		} else if (!e.shiftKey && active === last) {
+			e.preventDefault();
+			first.focus();
+		}
+	};
+	const onMouseDown = (e) => {
+		if (props.dismissOnScrim !== false && e.target === e.currentTarget && props.onClose) props.onClose();
+	};
+	return h("div", { className: "dshm-scrim", onKeyDown: onKeyDown, onMouseDown: onMouseDown, tabIndex: -1 },
+		h("div", {
+			ref: panelRef,
+			className: "dshm-sheet" + (props.small === true ? " dshm-sheet--small" : ""),
+			role: props.alert === true ? "alertdialog" : "dialog",
+			"aria-modal": "true",
+			"aria-label": typeof props.label === "string" ? props.label : undefined,
+		}, props.children));
 }
 
 function SshManagerSection(props, ctx) {
@@ -407,6 +553,7 @@ function SshManagerSection(props, ctx) {
 	const [probing, setProbing] = useState(false);
 	const [error, setError] = useState("");
 	const [form, setForm] = useState(null);
+	const [confirmAlias, setConfirmAlias] = useState(null);
 	const alive = useRef(true);
 	const probeRef = useRef(null);
 	useEffect(() => () => { alive.current = false; }, []);
@@ -479,15 +626,16 @@ function SshManagerSection(props, ctx) {
 			await load();
 			if (value && value.connection) await probeOne("conn:" + value.connection.alias);
 		} catch (err) {
+			// 保持 sheet 打开让用户改数据；错误同时上浮到页面级横幅。
 			if (alive.current) setError(t("error.probe") + String(err && err.message ? err.message : err));
 		}
 	}, [form]);
 
 	const deleteConnection = useCallback(async (alias) => {
-		if (!window.confirm(t("conn.confirmDelete") + " " + alias + "?")) return;
 		try {
 			await api("conn-delete", { alias });
 			if (!alive.current) return;
+			setConfirmAlias(null);
 			await load();
 		} catch (err) {
 			if (alive.current) setError(t("error.probe") + String(err && err.message ? err.message : err));
@@ -511,96 +659,159 @@ function SshManagerSection(props, ctx) {
 	const okTotal = okOf(hostList, "") + okOf(connections, "conn:");
 	const setField = (key) => (e) => setForm(Object.assign({}, form, { [key]: e.target.value }));
 
-	return h("div", { style: { display: "flex", flexDirection: "column", gap: "14px" } },
-		h("style", null, STYLE_CSS),
-		h("div", { style: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" } },
-			h("div", null,
-				h("div", { style: { fontSize: "17px", fontWeight: 650 } }, t("title")),
-				h("div", { className: "dshm-sub", style: { marginTop: "2px" } }, t("subtitle"))),
-			h("div", { className: "dshm-actions" },
-				h(Btn, { onClick: () => load(), flash: true }, t("action.refresh")),
-				h(Btn, { variant: "primary", onClick: () => probeAll(), disabled: probing }, probing ? t("status.probing") : t("action.probeAll")))),
-		h("div", { className: "dshm-statbar" },
-			h(Chip, { tone: "dim" }, hostList.length + " " + t("stat.hosts")),
-			h(Chip, { tone: "dim" }, connections.length + " " + t("stat.conns")),
-			total > 0 ? h(Chip, { tone: okTotal === total ? "ok" : "warn" }, okTotal + "/" + total + " " + t("stat.reachable")) : null),
-		error ? h("div", { style: { color: "#dc2626", fontSize: "13px" } }, error) : null,
+	const hostRow = (item) => {
+		const s = statusOf(item.alias);
+		return h("div", { key: item.alias, className: "dshm-row" },
+			h(Dot, { kind: s.kind }),
+			h("div", { className: "dshm-main" },
+				h("span", { className: "dshm-name", title: item.alias }, item.alias),
+				h("span", { className: "dshm-detail" },
+					h("span", null, item.url),
+					h("span", { className: "dshm-sep" }, "·"),
+					h("span", null, item.user))),
+			h("div", { className: "dshm-side" },
+				h(StatusText, { s: s, t: t }),
+				item.hasKey ? h(Chip, { tone: "ok" }, t("key.yes")) : h(Chip, { tone: "warn" }, t("key.no")),
+				h(Btn, {
+					size: "sm", variant: "tinted", iconOnly: true,
+					onClick: () => probeOne(item.alias), disabled: s.kind === "probing",
+					title: t("action.probeOne"), ariaLabel: t("action.probeOne"),
+				}, h(Ico, { name: "probe", size: 11 }))));
+	};
 
-		hosts === null ? h("div", { className: "dshm-sub" }, "…") :
-		hostList.length === 0 ? h("div", { className: "dshm-empty" }, t("empty")) :
-		h("div", { className: "dshm-grid" }, hostList.map((item) => {
-			const s = statusOf(item.alias);
-			return h("div", { key: item.alias, className: "dshm-card" },
-				h("div", { className: "dshm-card-head" },
-					h("span", { className: "dshm-card-title", title: item.alias }, item.alias),
-					h(StatusPill, { kind: s.kind, latencyMs: s.latencyMs, error: s.error, t: t })),
-				h(Kv, { label: t("col.url"), value: item.url }),
-				h("div", { className: "dshm-kv", style: { gap: "10px" } },
-					h(Kv, { label: t("col.user"), value: item.user }),
-					item.hasKey ? h(Chip, { tone: "ok" }, t("key.yes")) : h(Chip, { tone: "warn" }, t("key.no"))),
-				h("div", { className: "dshm-actions" },
-					h(Btn, { size: "sm", onClick: () => probeOne(item.alias), disabled: s.kind === "probing" }, t("action.probeOne"))));
-		})),
-
-		h("div", { style: { display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginTop: "4px" } },
-			h("div", null,
-				h("div", { style: { fontSize: "14.5px", fontWeight: 600 } }, t("conn.title")),
-				h("div", { className: "dshm-sub" }, t("conn.subtitle"))),
-			form === null ? h(Btn, { size: "sm", variant: "primary", onClick: () => setForm({ editing: null, alias: "", ip: "", port: "", user: "", password: "", workspace: "" }) }, "+ " + t("conn.add")) : null),
-
-		form !== null ? h("div", { className: "dshm-form" },
-			h("div", { className: "dshm-fieldrow" },
-				h("div", { className: "dshm-field" },
-					h("span", null, t("conn.alias")),
-					h("input", { className: "dshm-input", value: form.alias, placeholder: t("conn.alias.ph"), disabled: form.editing !== null, onChange: setField("alias") })),
-				h("div", { className: "dshm-field" },
-					h("span", null, t("conn.ip")),
-					h("input", { className: "dshm-input", value: form.ip, placeholder: "192.168.1.10", onChange: setField("ip") }))),
-			h("div", { className: "dshm-fieldrow" },
-				h("div", { className: "dshm-field", style: { flex: "0 1 170px" } },
-					h("span", null, t("conn.port")),
-					h("input", { className: "dshm-input", value: form.port, placeholder: "22", onChange: setField("port") })),
-				h("div", { className: "dshm-field" },
-					h("span", null, t("conn.user")),
-					h("input", { className: "dshm-input", value: form.user, placeholder: "root", onChange: setField("user") }))),
-			h("div", { className: "dshm-fieldrow" },
-				h("div", { className: "dshm-field" },
-					h("span", null, t("conn.password")),
-					h("input", {
-						className: "dshm-input",
-						type: form.editing === null ? "text" : "password",
-						value: form.password,
-						placeholder: form.editing === null ? "••••••••" : t("conn.password.keep"),
-						autoComplete: "new-password",
-						onChange: setField("password"),
-					}))),
-			h("div", { className: "dshm-fieldrow" },
-				h("div", { className: "dshm-field" },
-					h("span", null, t("conn.workspace")),
-					h("input", { className: "dshm-input", value: form.workspace, placeholder: "/Users/you/project", onChange: setField("workspace") }))),
-			h("div", { className: "dshm-actions" },
-				h(Btn, { variant: "primary", onClick: () => saveForm() }, t("conn.save")),
-				h(Btn, { onClick: () => setForm(null) }, t("conn.cancel")))) : null,
-
-		connections.length === 0 && form === null ? h("div", { className: "dshm-empty" }, t("conn.empty")) :
-		h("div", { className: "dshm-grid" }, connections.map((item) => {
-			const key = "conn:" + item.alias;
-			const s = statusOf(key);
-			return h("div", { key: key, className: "dshm-card" },
-				h("div", { className: "dshm-card-head" },
-					h("span", { className: "dshm-card-title", title: item.alias }, item.alias),
-					h(StatusPill, { kind: s.kind, latencyMs: s.latencyMs, error: s.error, t: t, tcp: true })),
-				h("div", { className: "dshm-kv", style: { gap: "10px" } },
-					h("span", { style: { fontVariantNumeric: "tabular-nums" } }, item.ip + (item.port && item.port !== 22 ? ":" + item.port : "")),
-					h("span", { style: { opacity: 0.5 } }, "@"),
+	const connRow = (item) => {
+		const key = "conn:" + item.alias;
+		const s = statusOf(key);
+		return h("div", { key: key, className: "dshm-row" },
+			h(Dot, { kind: s.kind }),
+			h("div", { className: "dshm-main" },
+				h("span", { className: "dshm-name", title: item.alias }, item.alias),
+				h("span", { className: "dshm-detail" },
+					h("span", { className: "dshm-mono" }, item.ip + (item.port && item.port !== 22 ? ":" + item.port : "")),
+					h("span", { className: "dshm-sep" }, "@"),
 					h("span", null, item.user || "—"),
-					h(Chip, { tone: item.hasPassword ? "warn" : "dim", title: item.hasPassword ? t("conn.password") : "" }, item.hasPassword ? "••••••" : "—"),
-					item.workspace ? h(Chip, { tone: "dim", title: item.workspace }, item.workspace.length > 26 ? "…" + item.workspace.slice(-25) : item.workspace) : null),
-				h("div", { className: "dshm-actions" },
-					h(Btn, { size: "sm", onClick: () => probeOne(key), disabled: s.kind === "probing" }, t("action.probeOne")),
-					h(Btn, { size: "sm", onClick: () => setForm({ editing: item.alias, alias: item.alias, ip: item.ip, port: String(item.port === 22 ? "" : item.port), user: item.user, password: "", workspace: item.workspace }) }, t("conn.edit")),
-					h(Btn, { size: "sm", variant: "danger", onClick: () => deleteConnection(item.alias) }, t("conn.del"))));
-		})));
+					item.workspace
+						? h(Chip, { tone: "dim", title: item.workspace }, item.workspace.length > 26 ? "…" + item.workspace.slice(-25) : item.workspace)
+						: null,
+					item.hasPassword ? h(Chip, { tone: "warn", title: t("conn.password") }, "••••••") : null)),
+			h("div", { className: "dshm-side" },
+				h(StatusText, { s: s, t: t, tcp: true }),
+				h(Btn, {
+					size: "sm", variant: "tinted", iconOnly: true,
+					onClick: () => probeOne(key), disabled: s.kind === "probing",
+					title: t("action.probeOne"), ariaLabel: t("action.probeOne"),
+				}, h(Ico, { name: "probe", size: 11 })),
+				h(Btn, {
+					size: "sm", variant: "plain", iconOnly: true,
+					onClick: () => setForm({
+						editing: item.alias, alias: item.alias, ip: item.ip,
+						port: String(item.port === 22 ? "" : item.port), user: item.user,
+						password: "", workspace: item.workspace,
+					}),
+					title: t("conn.edit"), ariaLabel: t("conn.edit"),
+				}, h(Ico, { name: "pencil", size: 12 })),
+				h(Btn, {
+					size: "sm", variant: "danger", iconOnly: true,
+					onClick: () => setConfirmAlias(item.alias),
+					title: t("conn.del"), ariaLabel: t("conn.del"),
+				}, h(Ico, { name: "trash", size: 12 }))));
+	};
+
+	const formField = (key, labelKey, placeholder, extra) => h("div", { className: "dshm-field" },
+		h("span", { className: "dshm-field-label" }, t(labelKey)),
+		h("input", Object.assign({
+			className: "dshm-input" + (key === "ip" || key === "port" ? " dshm-mono" : ""),
+			value: form[key],
+			placeholder: placeholder,
+			onChange: setField(key),
+		}, extra || {})));
+
+	return h("div", { className: "dshm-root" },
+		h("style", null, STYLE_CSS),
+		h("div", { className: "dshm-head" },
+			h("div", null,
+				h("div", { className: "dshm-title" }, t("title")),
+				h("div", { className: "dshm-subtitle" }, t("subtitle"))),
+			h("div", { className: "dshm-toolbar" },
+				h(Btn, {
+					variant: "plain", iconOnly: true, flash: true,
+					onClick: () => load(),
+					title: t("action.refresh"), ariaLabel: t("action.refresh"),
+				}, h(Ico, { name: "refresh" })),
+				h(Btn, {
+					variant: "tinted",
+					onClick: () => probeAll(), disabled: probing,
+					icon: probing ? undefined : h(Ico, { name: "probe", size: 12 }),
+				}, probing ? t("status.probing") : t("action.probeAll")))),
+
+		h("div", { className: "dshm-stats" },
+			h(Stat, { value: String(hostList.length), label: t("stat.hosts") }),
+			h(Stat, { value: String(connections.length), label: t("stat.conns") }),
+			h(Stat, {
+				value: total > 0 ? okTotal + "/" + total : "—",
+				label: t("stat.reachable"),
+				tone: total === 0 ? undefined : (okTotal === total ? "ok" : "warn"),
+			})),
+
+		error ? h("div", { className: "dshm-error", role: "alert" },
+			h(Ico, { name: "warn", size: 14 }),
+			h("span", null, error)) : null,
+
+		h("div", { className: "dshm-sec" },
+			h("div", { className: "dshm-sec-head" },
+				h("span", { className: "dshm-sec-title" }, t("sec.keyhosts"))),
+			hosts === null
+				? h("div", { className: "dshm-group" }, h("div", { className: "dshm-empty" }, "…"))
+				: hostList.length === 0
+					? h("div", { className: "dshm-group" }, h(EmptyCard, { icon: "tray", text: t("empty") }))
+					: h("div", { className: "dshm-group" }, hostList.map(hostRow))),
+
+		h("div", { className: "dshm-sec" },
+			h("div", { className: "dshm-sec-head" },
+				h("span", { className: "dshm-sec-title" }, t("sec.conns")),
+				form === null ? h(Btn, {
+					size: "sm", variant: "tinted",
+					onClick: () => setForm({ editing: null, alias: "", ip: "", port: "", user: "", password: "", workspace: "" }),
+					icon: h(Ico, { name: "plus", size: 11 }),
+				}, t("conn.add")) : null),
+			connections.length === 0 && form === null
+				? h("div", { className: "dshm-group" }, h(EmptyCard, { icon: "tray", text: t("conn.empty") }))
+				: h("div", { className: "dshm-group" }, connections.map(connRow))),
+
+		form !== null ? h(Sheet, {
+			label: form.editing === null ? t("sheet.add") : t("sheet.edit"),
+			onClose: () => setForm(null),
+		},
+			h("div", { className: "dshm-sheet-head" },
+				h("div", { className: "dshm-sheet-title" }, form.editing === null ? t("sheet.add") : t("sheet.edit")),
+				h("div", { className: "dshm-sheet-sub" }, t("sheet.sub"))),
+			h("div", { className: "dshm-sheet-body" },
+				h("div", { className: "dshm-field-grid" },
+					formField("alias", "conn.alias", t("conn.alias.ph"), { disabled: form.editing !== null }),
+					formField("ip", "conn.ip", "192.168.1.10")),
+				h("div", { className: "dshm-field-grid" },
+					formField("port", "conn.port", "22"),
+					formField("user", "conn.user", "root")),
+				formField("password", "conn.password", form.editing === null ? "••••••••" : t("conn.password.keep"), {
+					type: form.editing === null ? "text" : "password",
+					autoComplete: "new-password",
+				}),
+				formField("workspace", "conn.workspace", "/Users/you/project")),
+			h("div", { className: "dshm-sheet-foot" },
+				h(Btn, { onClick: () => setForm(null) }, t("conn.cancel")),
+				h(Btn, { variant: "filled", wide: true, onClick: () => saveForm() }, t("conn.save")))) : null,
+
+		confirmAlias !== null ? h(Sheet, {
+			small: true, alert: true, dismissOnScrim: false,
+			label: t("alert.deleteTitle").replace("%s", confirmAlias),
+			onClose: () => setConfirmAlias(null),
+		},
+			h("div", { className: "dshm-alert-ico" }, h(Ico, { name: "trash", size: 18 })),
+			h("div", { className: "dshm-alert-title" }, t("alert.deleteTitle").replace("%s", confirmAlias)),
+			h("div", { className: "dshm-alert-msg" }, t("alert.deleteMsg")),
+			h("div", { className: "dshm-alert-foot" },
+				h(Btn, { wide: true, onClick: () => setConfirmAlias(null) }, t("conn.cancel")),
+				h(Btn, { variant: "destructive", wide: true, onClick: () => deleteConnection(confirmAlias) }, t("alert.delete")))) : null);
 }
 
 
