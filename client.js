@@ -1058,23 +1058,17 @@ function SshManagerSection(props, ctx) {
 
 
 /**
- * 侧栏面板入口（easy2learn-panel 范式）：36px 无边框图标按钮，点击把
- * 主区域切到本插件的面板；layout 服务缺失时静默降级为纯展示按钮。
+ * 侧栏面板图标（sidebar.panellist）：宿主 PanelRow 本身就是按钮（min-height 36px、
+ * padding 7px 8px），occupant 只需按 props.size（宽栏 16 / 窄栏 18）渲染纯图标。
+ * 不能再套 36px 按钮——嵌套 button 属非法 HTML，且会把宿主行撑到 ~50px 导致
+ * 侧栏各行高低不齐（v1.1.1 修复）。
  */
-function PanelButton(props, ctx) {
-	const onClick = () => {
-		try { ctx.layout.selectPanel(PANEL_ID); } catch { /* no layout service */ }
-	};
-	return h("button", {
-		type: "button", onClick,
-		title: t("nav.title"), "aria-label": t("nav.title"),
-		style: {
-			width: "36px", height: "36px", border: "none", cursor: "pointer",
-			borderRadius: "10px", display: "inline-flex", alignItems: "center",
-			justifyContent: "center", padding: 0, background: "transparent",
-			color: "inherit",
-		},
-	}, h(Ico, { name: "terminal", size: 20 }));
+function PanelGlyph(props) {
+	const size = (props && props.size) || 18;
+	return h("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", "aria-hidden": true },
+		h("rect", { x: 2.75, y: 4.25, width: 18.5, height: 15.5, rx: 2.75, stroke: "currentColor", strokeWidth: 1.7 }),
+		h("path", { d: "M6.75 9.25l2.9 2.75-2.9 2.75", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round", strokeLinejoin: "round" }),
+		h("path", { d: "M12.25 14.75h4.9", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" }));
 }
 
 /** 主面板视图：同一管理页组件，滚动容器 + 居中限宽排版。 */
@@ -1109,14 +1103,14 @@ function apply(ctx) {
 		id: PANEL_ID,
 		order: 95,
 		label: () => t("nav.title"),
-	}, (props) => PanelButton(props, ctx)));
+	}, PanelGlyph));
 	ctx.slots.inject("main", () => ctx.slots.register({
 		name: "main",
 		key: PANEL_ID,
 	}, () => SshPanel()));
 }
 
-const inject = ["slots", "locale", "layout"];
+const inject = ["slots", "locale"];
 
 exports.apply = apply;
 exports.inject = inject;
