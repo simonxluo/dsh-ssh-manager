@@ -308,8 +308,10 @@ function localeToLang(active) {
 	return "en";
 }
 
-/** Redraw hook set by the mounted section; language switches re-render through it. */
-var relocalize = null;
+/** Redraw hooks set by mounted sections; language switches re-render through
+ * them. A Set (not one callback) because the settings section and the main
+ * panel can be mounted at the same time. */
+var relocalizeHooks = new Set();
 
 /**
  * The locale service is optional: read it through ctx.get when available and
@@ -341,8 +343,8 @@ function subscribeLocale(ctx) {
 				UI_LANG = localeToLang(service.getSnapshot().active);
 			}
 		} catch { /* keep the last language */ }
-		if (typeof relocalize === "function") {
-			try { relocalize(); } catch { /* a failed redraw must not break the subscription chain */ }
+		for (const redraw of relocalizeHooks) {
+			try { redraw(); } catch { /* a failed redraw must not break the subscription chain */ }
 		}
 	};
 	apply();
@@ -512,6 +514,10 @@ function Ico(props) {
 			h("path", { d: "M8 2.6L14.4 13.4H1.6z" }),
 			h("path", { d: "M8 6.6v3" }),
 			h("path", { d: "M8 11.7v.01" }));
+		case "terminal": return h("svg", { ...common, strokeWidth: 1.5 },
+			h("rect", { x: 2.2, y: 3.2, width: 11.6, height: 9.6, rx: 1.8 }),
+			h("path", { d: "M5 6.6l1.9 1.9L5 10.4" }),
+			h("path", { d: "M8.7 10.5h2.9" }));
 		case "info": return h("svg", { ...common, strokeWidth: 1.4 },
 			h("circle", { cx: 8, cy: 8, r: 6.3 }),
 			h("path", { d: "M8 7.4v3.2" }),
@@ -773,8 +779,9 @@ function SshManagerSection(props, ctx) {
 	const probeRef = useRef(null);
 	useEffect(() => () => { alive.current = false; }, []);
 	useEffect(() => {
-		relocalize = () => setLangTick((v) => v + 1);
-		return () => { relocalize = null; };
+		const redraw = () => setLangTick((v) => v + 1);
+		relocalizeHooks.add(redraw);
+		return () => { relocalizeHooks.delete(redraw); };
 	}, []);
 
 	const load = useCallback(async () => {
@@ -1050,9 +1057,43 @@ function SshManagerSection(props, ctx) {
 }
 
 
+/**
+ * 侧栏面板入口（easy2learn-panel 范式）：36px 无边框图标按钮，点击把
+ * 主区域切到本插件的面板；layout 服务缺失时静默降级为纯展示按钮。
+ */
+function PanelButton(props, ctx) {
+	const onClick = () => {
+		try { ctx.layout.selectPanel(PANEL_ID); } catch { /* no layout service */ }
+	};
+	return h("button", {
+		type: "button", onClick,
+		title: t("nav.title"), "aria-label": t("nav.title"),
+		style: {
+			width: "36px", height: "36px", border: "none", cursor: "pointer",
+			borderRadius: "10px", display: "inline-flex", alignItems: "center",
+			justifyContent: "center", padding: 0, background: "transparent",
+			color: "inherit",
+		},
+	}, h(Ico, { name: "terminal", size: 20 }));
+}
+
+/** 主面板视图：同一管理页组件，滚动容器 + 居中限宽排版。 */
+function SshPanel() {
+	return h("div", {
+		style: {
+			flex: 1, minHeight: 0, overflowY: "auto", boxSizing: "border-box",
+			width: "100%", maxWidth: "880px", margin: "0 auto",
+			padding: "20px 24px 30px",
+		},
+	}, h(SshManagerSection, {}));
+}
+
+/** 主面板 key 与 sidebar.panellist 的按钮 id（layout.selectPanel 的参数）。 */
+const PANEL_ID = "ssh-manager";
+
 function apply(ctx) {
 	// Keep UI_LANG in step with the harness language for the plugin's whole
-	// lifetime; the section re-renders itself through the relocalize hook.
+	// lifetime; sections re-render themselves through the relocalize hooks.
 	ctx.effect(() => subscribeLocale(ctx));
 	ctx.slots.inject("settings.section", () => ctx.slots.register({
 		name: "settings.section",
@@ -1061,9 +1102,21 @@ function apply(ctx) {
 		label: () => t("nav.title"),
 		inject: () => ({}),
 	}, (props) => SshManagerSection(props, ctx)));
+
+	// DSH 内嵌面板：侧栏图标 + main keyed slot，与设置页共用同一组件。
+	ctx.slots.inject("sidebar.panellist", () => ctx.slots.register({
+		name: "sidebar.panellist",
+		id: PANEL_ID,
+		order: 95,
+		label: () => t("nav.title"),
+	}, (props) => PanelButton(props, ctx)));
+	ctx.slots.inject("main", () => ctx.slots.register({
+		name: "main",
+		key: PANEL_ID,
+	}, () => SshPanel()));
 }
 
-const inject = ["slots", "locale"];
+const inject = ["slots", "locale", "layout"];
 
 exports.apply = apply;
 exports.inject = inject;
