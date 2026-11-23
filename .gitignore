@@ -1,5 +1,44 @@
+# ─── 运行期个人数据 / 密钥 —— 绝不入库 ───
+# 本插件管理 SSH 私钥与主机配置；真实的 key/config 由 DSH 在运行期
+# 物化到 $DSH_HOME 下，仓库内只允许出现文档用的占位符。
+data.json
+*.local.json
+*.private.json
+*.bak*
+privateInfo/
+private/
+secrets/
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+*.token
+.npmrc
+.ssh/
+known_hosts*
+ssh_config*
+
+# ─── 依赖与构建产物 ───
 node_modules/
-*.log
+lib/
+dist/
+*.tsbuildinfo
+coverage/
+
+# ─── 编辑器 / 系统 ───
 .DS_Store
 ._*
-.DS_Store
+*.swp
+*~
+.idea/
+.vscode/
+Thumbs.db
+
+# ─── 日志 ───
+*.log
+npm-debug.log*
+pnpm-debug.log*
